@@ -65,11 +65,11 @@ final class FocalPoint_EasyCoach_LTI_Configuration
         }
 
         $required_strings = array(
-            'FP_EASYCOACH_LTI_CLIENT_ID'       => $this->client_id(),
-            'FP_EASYCOACH_LTI_DEPLOYMENT_ID'   => $this->deployment_id(),
-            'FP_EASYCOACH_LTI_ISSUER'          => $this->issuer(),
-            'FP_EASYCOACH_LTI_KEY_ID'          => $this->key_id(),
-            'FP_EASYCOACH_LTI_PRIVATE_KEY_PATH'=> $this->private_key_path(),
+            'FP_EASYCOACH_LTI_CLIENT_ID'        => $this->client_id(),
+            'FP_EASYCOACH_LTI_DEPLOYMENT_ID'    => $this->deployment_id(),
+            'FP_EASYCOACH_LTI_ISSUER'           => $this->issuer(),
+            'FP_EASYCOACH_LTI_KEY_ID'           => $this->key_id(),
+            'FP_EASYCOACH_LTI_PRIVATE_KEY_PATH' => $this->private_key_path(),
         );
 
         foreach ($required_strings as $constant_name => $value) {

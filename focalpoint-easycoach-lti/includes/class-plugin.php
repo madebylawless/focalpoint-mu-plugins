@@ -12,6 +12,10 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private FocalPoint_EasyCoach_LTI_REST_Controller $rest_controller;
 
+    private ?FocalPoint_EasyCoach_LTI_Database $database = null;
+
+    private ?FocalPoint_EasyCoach_LTI_User_Mapper $user_mapper = null;
+
     public static function boot(): self
     {
         if (self::$instance === null) {
@@ -28,7 +32,34 @@ final class FocalPoint_EasyCoach_LTI_Plugin
             $this->configuration
         );
 
+        add_action('init', array($this, 'initialise_data_layer'), 1);
         add_action('rest_api_init', array($this->rest_controller, 'register_routes'));
     }
-}
 
+    public function initialise_data_layer(): void
+    {
+        if ($this->database !== null) {
+            return;
+        }
+
+        global $wpdb;
+
+        $this->database = new FocalPoint_EasyCoach_LTI_Database($wpdb);
+        $this->database->maybe_install();
+
+        $store = new FocalPoint_EasyCoach_LTI_User_Map_Repository(
+            $wpdb,
+            $this->database->user_map_table()
+        );
+
+        $this->user_mapper = new FocalPoint_EasyCoach_LTI_User_Mapper(
+            $store,
+            $this->configuration->deployment_id()
+        );
+    }
+
+    public function user_mapper(): ?FocalPoint_EasyCoach_LTI_User_Mapper
+    {
+        return $this->user_mapper;
+    }
+}
