@@ -48,6 +48,53 @@ final class FocalPoint_EasyCoach_LTI_Configuration
             : self::DEFAULT_TOOL_JWKS_URL;
     }
 
+    public function initiate_login_url(): string
+    {
+        return $this->string_constant('FP_EASYCOACH_LTI_INITIATE_LOGIN_URL');
+    }
+
+    /**
+     * Return the exact EasyGenerator redirect URIs accepted by the platform.
+     *
+     * @return string[]
+     */
+    public function redirect_uris(): array
+    {
+        if (!defined('FP_EASYCOACH_LTI_REDIRECT_URIS')) {
+            return array();
+        }
+
+        $value = constant('FP_EASYCOACH_LTI_REDIRECT_URIS');
+
+        if (is_string($value)) {
+            $value = preg_split('/[\r\n,]+/', $value) ?: array();
+        }
+
+        if (!is_array($value)) {
+            return array();
+        }
+
+        $uris = array();
+        foreach ($value as $uri) {
+            if (is_string($uri) && trim($uri) !== '') {
+                $uris[] = trim($uri);
+            }
+        }
+
+        return array_values(array_unique($uris));
+    }
+
+    public function is_allowed_redirect_uri(string $redirect_uri): bool
+    {
+        foreach ($this->redirect_uris() as $allowed_uri) {
+            if (hash_equals($allowed_uri, $redirect_uri)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Return configuration deficiencies for internal diagnostics only.
      *
@@ -83,12 +130,28 @@ final class FocalPoint_EasyCoach_LTI_Configuration
             $missing[] = 'readable_private_key';
         }
 
-        if (!$this->is_https_url($this->issuer())) {
+        if (!$this->is_https_issuer($this->issuer())) {
             $missing[] = 'https_issuer';
         }
 
         if (!$this->is_https_url($this->tool_jwks_url())) {
             $missing[] = 'https_tool_jwks_url';
+        }
+
+        if (!$this->is_https_url($this->initiate_login_url())) {
+            $missing[] = 'https_initiate_login_url';
+        }
+
+        $redirect_uris = $this->redirect_uris();
+        if ($redirect_uris === array()) {
+            $missing[] = 'FP_EASYCOACH_LTI_REDIRECT_URIS';
+        } else {
+            foreach ($redirect_uris as $redirect_uri) {
+                if (!$this->is_https_url($redirect_uri)) {
+                    $missing[] = 'https_redirect_uri';
+                    break;
+                }
+            }
         }
 
         return array_values(array_unique($missing));
@@ -118,7 +181,21 @@ final class FocalPoint_EasyCoach_LTI_Configuration
 
         $scheme = wp_parse_url($url, PHP_URL_SCHEME);
         $host   = wp_parse_url($url, PHP_URL_HOST);
+        $fragment = wp_parse_url($url, PHP_URL_FRAGMENT);
+        $user     = wp_parse_url($url, PHP_URL_USER);
+        $password = wp_parse_url($url, PHP_URL_PASS);
 
-        return $scheme === 'https' && is_string($host) && $host !== '';
+        return $scheme === 'https'
+            && is_string($host)
+            && $host !== ''
+            && $fragment === null
+            && $user === null
+            && $password === null;
+    }
+
+    private function is_https_issuer(string $url): bool
+    {
+        return $this->is_https_url($url)
+            && wp_parse_url($url, PHP_URL_QUERY) === null;
     }
 }

@@ -3,10 +3,11 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
-Version `0.3.0` adds protected RSA signing-key loading and the public JWKS
-endpoint. It retains the versioned network data model and stable opaque learner
-mapping from `0.2.0`. Launch, token, line-item and score routes still return a
-safe `503` until their complete authentication flows are implemented.
+Version `0.4.0` adds the LTI 1.3 third-party initiated OpenID Connect resource
+link launch. It retains the protected RSA signing key, public JWKS, versioned
+network data model and stable opaque learner mapping from earlier milestones.
+Token, line-item and score routes still return a safe `503` until their
+complete authentication flows are implemented.
 
 ## Responsibilities
 
@@ -29,12 +30,38 @@ the `rayner_focalpoint_mgmt` theme.
 All routes use the `focalpoint-lti/v1` REST namespace:
 
 - `GET /jwks` (implemented)
-- `GET|POST /authorize`
+- `GET|POST /authorize` (implemented for OIDC LTI resource-link launch)
 - `POST /token`
 - `GET /lineitems/{lineitem_id}`
 - `POST /lineitems/{lineitem_id}/scores`
 
 WordPress exposes these beneath `/wp-json/` on a standard installation.
+
+## OIDC resource-link launch
+
+The learner theme calls `fp_easycoach_lti_launch_url($post_id)` for a published
+AI Roleplay with a configured EasyGenerator target link URI. The resulting
+same-origin, nonce-protected URL starts this flow:
+
+1. Focal Point creates a five-minute pending launch and redirects the browser
+   to EasyGenerator's registered login-initiation endpoint with opaque
+   `login_hint` and `lti_message_hint` values.
+2. EasyGenerator sends the browser to Focal Point's `/authorize` endpoint with
+   its `state`, `nonce`, client ID and an exact registered redirect URI.
+3. Focal Point validates the request, logged-in learner, one-time hints and
+   redirect URI, then signs a five-minute `LtiResourceLinkRequest` ID token.
+4. Focal Point returns an auto-submitting `form_post` containing only `state`
+   and `id_token` to the registered EasyGenerator redirect URI.
+
+The token contains the learner's opaque `fp_...` subject, learner role,
+deployment, stable resource-link identity, target URI, return URL and the AGS
+line-item endpoint. It deliberately excludes the learner's WordPress ID, name
+and email address. Each hint pair is single-use; state and nonce hashes are
+retained for replay auditing.
+
+AI Roleplay posts are mapped lazily on their first launch. A stable activity
+and line item are reused on later launches while each learner launch receives
+fresh one-time hints.
 
 ## Signing key and public JWKS
 
@@ -84,7 +111,10 @@ The MU plugin uses six network-level tables based on `$wpdb->base_prefix`:
 The installer is versioned through the network option
 `fp_easycoach_lti_schema_version`. Because MU plugins have no activation hook,
 the installer checks the version during WordPress `init`, uses a network lock,
-and runs `dbDelta()` only when an installation or upgrade is required.
+and runs `dbDelta()` only when an installation or upgrade is required. Schema
+version `2` adds hashed login/message hints and immutable target/return URL
+snapshots to pending launches; an explicit idempotent migration makes the
+state and nonce columns nullable until EasyGenerator supplies those values.
 
 No learner names or email addresses are stored in these tables. WordPress user
 IDs remain inside Focal Point and are never sent as the LTI learner identifier.
@@ -120,7 +150,16 @@ define('FP_EASYCOACH_LTI_DEPLOYMENT_ID', '');
 define('FP_EASYCOACH_LTI_ISSUER', '');
 define('FP_EASYCOACH_LTI_KEY_ID', '');
 define('FP_EASYCOACH_LTI_PRIVATE_KEY_PATH', '');
+define('FP_EASYCOACH_LTI_INITIATE_LOGIN_URL', '');
+define('FP_EASYCOACH_LTI_REDIRECT_URIS', array(
+    '',
+));
 ```
+
+`FP_EASYCOACH_LTI_INITIATE_LOGIN_URL` is the EasyGenerator third-party login
+initiation endpoint. `FP_EASYCOACH_LTI_REDIRECT_URIS` must contain the exact
+HTTPS redirect URI or URIs registered by EasyGenerator; authorization requests
+using any other URI are rejected.
 
 The EasyCoach public JWKS endpoint defaults to the vendor-confirmed URL:
 
@@ -140,6 +179,7 @@ bootstrapping, route registration and fail-closed responses:
 php focalpoint-easycoach-lti/tests/smoke.php
 php focalpoint-easycoach-lti/tests/data-model.php
 php focalpoint-easycoach-lti/tests/keys-and-jwks.php
+php focalpoint-easycoach-lti/tests/oidc-launch.php
 ```
 
 ## Retention and removal

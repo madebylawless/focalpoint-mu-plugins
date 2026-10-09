@@ -126,6 +126,16 @@ test_assert(
     !str_contains(strtolower($schema_text), 'foreign key'),
     'The dbDelta schema must not use foreign-key constraints.'
 );
+test_assert(
+    str_contains($schema_text, 'login_hint_hash char(64) NOT NULL')
+        && str_contains($schema_text, 'message_hint_hash char(64) NOT NULL'),
+    'Pending launches must store only hashes of the one-time Tool hints.'
+);
+test_assert(
+    str_contains($schema_text, 'state_hash char(64) DEFAULT NULL')
+        && str_contains($schema_text, 'nonce_hash char(64) DEFAULT NULL'),
+    'State and nonce hashes must remain nullable until authorization.'
+);
 
 $store  = new FocalPoint_Test_User_Map_Store();
 $mapper = new FocalPoint_EasyCoach_LTI_User_Mapper($store, 'focalpoint-production');

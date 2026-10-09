@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Focal Point EasyCoach LTI
  * Description: Shared LTI 1.3 platform foundation for the Focal Point multisite and EasyCoach.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Requires PHP: 8.0
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FP_EASYCOACH_LTI_VERSION', '0.3.0');
+define('FP_EASYCOACH_LTI_VERSION', '0.4.0');
 define('FP_EASYCOACH_LTI_DIR', WPMU_PLUGIN_DIR . '/focalpoint-easycoach-lti');
 
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-configuration.php';
@@ -19,6 +19,11 @@ require_once FP_EASYCOACH_LTI_DIR . '/includes/class-database.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-user-map-store.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-user-map-repository.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-user-mapper.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-launch-store.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-launch-repository.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-jwt-builder.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-oidc-launch-service.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-launch-controller.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-rest-controller.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-plugin.php';
 
@@ -51,4 +56,23 @@ function fp_easycoach_lti_user_id_for_subject(string $lti_subject): ?int
     $mapper = FocalPoint_EasyCoach_LTI_Plugin::boot()->user_mapper();
 
     return $mapper === null ? null : $mapper->user_id_for_subject($lti_subject);
+}
+
+/**
+ * Return the authenticated launch URL for a learner-facing activity.
+ *
+ * @return string|WP_Error
+ */
+function fp_easycoach_lti_launch_url(int $post_id)
+{
+    $controller = FocalPoint_EasyCoach_LTI_Plugin::boot()->launch_controller();
+
+    if ($controller === null) {
+        return new WP_Error(
+            'fp_easycoach_lti_launch_unavailable',
+            'The EasyCoach launch service is unavailable.'
+        );
+    }
+
+    return $controller->launch_url($post_id);
 }
