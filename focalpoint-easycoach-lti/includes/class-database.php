@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 final class FocalPoint_EasyCoach_LTI_Database
 {
-    public const SCHEMA_VERSION = '1';
+    public const SCHEMA_VERSION = '2';
 
     private const SCHEMA_OPTION = 'fp_easycoach_lti_schema_version';
     private const LOCK_OPTION   = 'fp_easycoach_lti_schema_lock';
@@ -71,7 +71,9 @@ final class FocalPoint_EasyCoach_LTI_Database
                 dbDelta($sql);
             }
 
-            if ($this->all_tables_exist()) {
+            $this->normalize_launch_hash_columns();
+
+            if ($this->schema_is_current()) {
                 update_site_option(self::SCHEMA_OPTION, self::SCHEMA_VERSION);
             } else {
                 error_log('Focal Point EasyCoach LTI schema installation did not create every table.');
@@ -147,8 +149,12 @@ final class FocalPoint_EasyCoach_LTI_Database
                 user_map_id bigint(20) unsigned NOT NULL,
                 activity_id bigint(20) unsigned NOT NULL,
                 lineitem_id bigint(20) unsigned NOT NULL,
-                state_hash char(64) NOT NULL,
-                nonce_hash char(64) NOT NULL,
+                login_hint_hash char(64) NOT NULL,
+                message_hint_hash char(64) NOT NULL,
+                state_hash char(64) DEFAULT NULL,
+                nonce_hash char(64) DEFAULT NULL,
+                target_link_uri text NOT NULL,
+                return_url text NOT NULL,
                 status varchar(20) NOT NULL DEFAULT 'pending',
                 created_at datetime NOT NULL,
                 issued_at datetime DEFAULT NULL,
@@ -156,6 +162,8 @@ final class FocalPoint_EasyCoach_LTI_Database
                 completed_at datetime DEFAULT NULL,
                 PRIMARY KEY  (id),
                 UNIQUE KEY launch_id (launch_id),
+                UNIQUE KEY login_hint_hash (login_hint_hash),
+                UNIQUE KEY message_hint_hash (message_hint_hash),
                 UNIQUE KEY state_hash (state_hash),
                 UNIQUE KEY nonce_hash (nonce_hash),
                 KEY user_activity (user_map_id,activity_id),
@@ -236,5 +244,49 @@ final class FocalPoint_EasyCoach_LTI_Database
 
         return true;
     }
-}
 
+    /**
+     * dbDelta does not reliably relax existing NOT NULL columns, so normalize
+     * the two values that are unknown until the Tool's authorization request.
+     */
+    private function normalize_launch_hash_columns(): void
+    {
+        $table = $this->table_names()['launches'];
+
+        $this->wpdb->query(
+            "ALTER TABLE {$table}
+                MODIFY state_hash char(64) DEFAULT NULL,
+                MODIFY nonce_hash char(64) DEFAULT NULL"
+        );
+    }
+
+    private function schema_is_current(): bool
+    {
+        if (!$this->all_tables_exist()) {
+            return false;
+        }
+
+        $table   = $this->table_names()['launches'];
+        $columns = $this->wpdb->get_results("SHOW COLUMNS FROM {$table}", ARRAY_A);
+
+        if (!is_array($columns)) {
+            return false;
+        }
+
+        $by_name = array();
+        foreach ($columns as $column) {
+            if (isset($column['Field'])) {
+                $by_name[$column['Field']] = $column;
+            }
+        }
+
+        foreach (array('login_hint_hash', 'message_hint_hash', 'target_link_uri', 'return_url') as $name) {
+            if (!isset($by_name[$name])) {
+                return false;
+            }
+        }
+
+        return ($by_name['state_hash']['Null'] ?? '') === 'YES'
+            && ($by_name['nonce_hash']['Null'] ?? '') === 'YES';
+    }
+}

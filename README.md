@@ -30,9 +30,10 @@ Grade Services (AGS).
 - Bootstrap: `focalpoint-easycoach-lti.php`
 - Implementation and documentation: `focalpoint-easycoach-lti/`
 
-Version `0.3.0` adds protected RSA signing-key loading and public JWKS
-publication alongside the network data model and stable pseudonymous learner
-mapping. Launch, token and result routes remain fail-closed placeholders.
+Version `0.4.0` adds the LTI 1.3 third-party initiated OIDC resource-link
+launch, protected RSA signing-key loading and public JWKS publication alongside
+the network data model and stable pseudonymous learner mapping. Token and
+result routes remain fail-closed placeholders.
 
 The security and protocol implementation belongs in this repository. Learner
 interface components remain in the `rayner_focalpoint` theme, and KPI/reporting

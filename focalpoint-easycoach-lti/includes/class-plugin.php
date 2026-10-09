@@ -18,6 +18,10 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private ?FocalPoint_EasyCoach_LTI_User_Mapper $user_mapper = null;
 
+    private ?FocalPoint_EasyCoach_LTI_OIDC_Launch_Service $launch_service = null;
+
+    private ?FocalPoint_EasyCoach_LTI_Launch_Controller $launch_controller = null;
+
     public static function boot(): self
     {
         if (self::$instance === null) {
@@ -42,6 +46,12 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
         add_action('init', array($this, 'initialise_data_layer'), 1);
         add_action('rest_api_init', array($this->rest_controller, 'register_routes'));
+        add_filter(
+            'rest_pre_serve_request',
+            array($this->rest_controller, 'serve_authorization_form'),
+            10,
+            4
+        );
     }
 
     public function initialise_data_layer(): void
@@ -64,10 +74,37 @@ final class FocalPoint_EasyCoach_LTI_Plugin
             $store,
             $this->configuration->deployment_id()
         );
+
+        $launch_store = new FocalPoint_EasyCoach_LTI_Launch_Repository(
+            $wpdb,
+            $this->database->table_names()
+        );
+        $jwt_builder = new FocalPoint_EasyCoach_LTI_JWT_Builder(
+            $this->key_provider,
+            $this->configuration->key_id()
+        );
+
+        $this->launch_service = new FocalPoint_EasyCoach_LTI_OIDC_Launch_Service(
+            $this->configuration,
+            $this->user_mapper,
+            $launch_store,
+            $jwt_builder
+        );
+        $this->launch_controller = new FocalPoint_EasyCoach_LTI_Launch_Controller(
+            $this->configuration,
+            $this->launch_service
+        );
+        $this->launch_controller->register_hooks();
+        $this->rest_controller->set_launch_service($this->launch_service);
     }
 
     public function user_mapper(): ?FocalPoint_EasyCoach_LTI_User_Mapper
     {
         return $this->user_mapper;
+    }
+
+    public function launch_controller(): ?FocalPoint_EasyCoach_LTI_Launch_Controller
+    {
+        return $this->launch_controller;
     }
 }

@@ -10,12 +10,19 @@ define('ABSPATH', __DIR__ . '/wordpress/');
 define('WPMU_PLUGIN_DIR', dirname(__DIR__, 2));
 
 $test_actions = array();
+$test_filters = array();
 $test_routes  = array();
 
 function add_action($hook_name, $callback): void
 {
     global $test_actions;
     $test_actions[$hook_name][] = $callback;
+}
+
+function add_filter($hook_name, $callback, $priority = 10, $accepted_args = 1): void
+{
+    global $test_filters;
+    $test_filters[$hook_name][] = array($callback, $priority, $accepted_args);
 }
 
 function register_rest_route($namespace, $route, $arguments): void
