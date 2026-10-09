@@ -10,6 +10,8 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private FocalPoint_EasyCoach_LTI_Configuration $configuration;
 
+    private FocalPoint_EasyCoach_LTI_Key_Provider $key_provider;
+
     private FocalPoint_EasyCoach_LTI_REST_Controller $rest_controller;
 
     private ?FocalPoint_EasyCoach_LTI_Database $database = null;
@@ -27,9 +29,15 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private function __construct()
     {
-        $this->configuration  = new FocalPoint_EasyCoach_LTI_Configuration();
+        $this->configuration = new FocalPoint_EasyCoach_LTI_Configuration();
+        $this->key_provider  = new FocalPoint_EasyCoach_LTI_Key_Provider(
+            $this->configuration->key_id(),
+            $this->configuration->private_key_path(),
+            ABSPATH
+        );
         $this->rest_controller = new FocalPoint_EasyCoach_LTI_REST_Controller(
-            $this->configuration
+            $this->configuration,
+            $this->key_provider
         );
 
         add_action('init', array($this, 'initialise_data_layer'), 1);

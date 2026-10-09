@@ -35,6 +35,13 @@ final class WP_REST_Server
     public const CREATABLE = 'POST';
 }
 
+final class WP_REST_Response
+{
+    public function __construct($data = null, $status = 200, $headers = array())
+    {
+    }
+}
+
 final class WP_Error
 {
     public string $code;
@@ -47,6 +54,11 @@ final class WP_Error
         $this->message = (string) $message;
         $this->data    = is_array($data) ? $data : array();
     }
+}
+
+function is_wp_error($thing): bool
+{
+    return $thing instanceof WP_Error;
 }
 
 function test_assert(bool $condition, string $message): void
@@ -94,4 +106,3 @@ foreach ($test_routes as $route => $arguments) {
 }
 
 echo "EasyCoach LTI foundation smoke test passed.\n";
-

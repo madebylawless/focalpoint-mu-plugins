@@ -3,10 +3,10 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
-Version `0.2.0` adds the versioned network data model and stable opaque learner
-mapping. The REST routes still return a safe `503`; the plugin does not yet
-generate cryptographic keys, launch EasyCoach, accept OAuth clients, or accept
-result requests.
+Version `0.3.0` adds protected RSA signing-key loading and the public JWKS
+endpoint. It retains the versioned network data model and stable opaque learner
+mapping from `0.2.0`. Launch, token, line-item and score routes still return a
+safe `503` until their complete authentication flows are implemented.
 
 ## Responsibilities
 
@@ -24,17 +24,49 @@ The learner-facing roleplay controls and profile presentation remain in the
 `rayner_focalpoint` theme. Management KPI ingestion and reporting remain in
 the `rayner_focalpoint_mgmt` theme.
 
-## Planned platform routes
+## Platform routes
 
 All routes use the `focalpoint-lti/v1` REST namespace:
 
-- `GET /jwks`
+- `GET /jwks` (implemented)
 - `GET|POST /authorize`
 - `POST /token`
 - `GET /lineitems/{lineitem_id}`
 - `POST /lineitems/{lineitem_id}/scores`
 
 WordPress exposes these beneath `/wp-json/` on a standard installation.
+
+## Signing key and public JWKS
+
+The platform uses RSA with SHA-256 (`RS256`). Its private key is loaded from
+`FP_EASYCOACH_LTI_PRIVATE_KEY_PATH` and must:
+
+- be an RSA private key of at least 2048 bits;
+- be stored outside the WordPress public root, including through symlinks;
+- be readable by PHP but not world-readable, group-writable or executable;
+- be no larger than 64 KiB.
+
+Recommended permissions are `0600` when PHP runs as the file owner or `0640`
+when a dedicated web-server group needs read access. A production key can be
+generated on the server without placing it in this repository:
+
+```bash
+umask 077
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out /protected/path/focalpoint-lti-private.pem
+```
+
+When the integration is enabled and the key is valid, `GET /jwks` returns only
+the RSA public modulus and exponent, with `kid`, `use: sig` and `alg: RS256`.
+The private PEM is never returned or stored in WordPress.
+
+The JWKS endpoint intentionally depends only on the enabled flag and key
+configuration. This allows EasyGenerator to retrieve the public key while the
+remaining client and deployment registration values are being established.
+
+Changing a production key requires a new unique key ID. Coordinate the new
+public key with EasyGenerator before switching the signing configuration;
+overlapping multi-key rotation is not part of this milestone.
 
 ## Network data model
 
@@ -107,6 +139,7 @@ bootstrapping, route registration and fail-closed responses:
 ```bash
 php focalpoint-easycoach-lti/tests/smoke.php
 php focalpoint-easycoach-lti/tests/data-model.php
+php focalpoint-easycoach-lti/tests/keys-and-jwks.php
 ```
 
 ## Retention and removal
