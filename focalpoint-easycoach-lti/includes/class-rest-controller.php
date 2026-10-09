@@ -10,9 +10,14 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
 
     private FocalPoint_EasyCoach_LTI_Configuration $configuration;
 
-    public function __construct(FocalPoint_EasyCoach_LTI_Configuration $configuration)
-    {
+    private FocalPoint_EasyCoach_LTI_Key_Provider $key_provider;
+
+    public function __construct(
+        FocalPoint_EasyCoach_LTI_Configuration $configuration,
+        FocalPoint_EasyCoach_LTI_Key_Provider $key_provider
+    ) {
         $this->configuration = $configuration;
+        $this->key_provider  = $key_provider;
     }
 
     public function register_routes(): void
@@ -22,7 +27,7 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
             '/jwks',
             array(
                 'methods'             => WP_REST_Server::READABLE,
-                'callback'            => array($this, 'unavailable'),
+                'callback'            => array($this, 'jwks'),
                 'permission_callback' => '__return_true',
             )
         );
@@ -69,6 +74,30 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
     }
 
     /**
+     * Publish only the public components of the configured platform key.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function jwks()
+    {
+        if (!$this->configuration->is_enabled()) {
+            return $this->unavailable();
+        }
+
+        $jwks = $this->key_provider->jwks();
+
+        if (is_wp_error($jwks)) {
+            return $this->unavailable();
+        }
+
+        return new WP_REST_Response(
+            $jwks,
+            200,
+            array('Cache-Control' => 'public, max-age=300, must-revalidate')
+        );
+    }
+
+    /**
      * Fail closed until the complete endpoint implementation is available.
      *
      * @return WP_Error
@@ -86,4 +115,3 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
         );
     }
 }
-
