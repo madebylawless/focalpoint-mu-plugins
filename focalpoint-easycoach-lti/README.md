@@ -3,11 +3,12 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
-Version `0.4.0` adds the LTI 1.3 third-party initiated OpenID Connect resource
-link launch. It retains the protected RSA signing key, public JWKS, versioned
-network data model and stable opaque learner mapping from earlier milestones.
-Token, line-item and score routes still return a safe `503` until their
-complete authentication flows are implemented.
+Version `0.5.0` adds the LTI 1.3 OAuth 2.0 client-credentials token service.
+It validates EasyGenerator `private_key_jwt` client assertions against the
+registered Tool JWKS, rejects assertion replay and issues one-hour RS256 bearer
+tokens restricted to the advertised AGS line-item and score scopes. Line-item
+and score routes still return a safe `503` until their complete authenticated
+service flows are implemented.
 
 ## Responsibilities
 
@@ -31,7 +32,7 @@ All routes use the `focalpoint-lti/v1` REST namespace:
 
 - `GET /jwks` (implemented)
 - `GET|POST /authorize` (implemented for OIDC LTI resource-link launch)
-- `POST /token`
+- `POST /token` (implemented for OAuth 2.0 `client_credentials`)
 - `GET /lineitems/{lineitem_id}`
 - `POST /lineitems/{lineitem_id}/scores`
 
@@ -97,7 +98,7 @@ overlapping multi-key rotation is not part of this milestone.
 
 ## Network data model
 
-The MU plugin uses six network-level tables based on `$wpdb->base_prefix`:
+The MU plugin uses seven network-level tables based on `$wpdb->base_prefix`:
 
 | Table | Purpose |
 | --- | --- |
@@ -105,6 +106,7 @@ The MU plugin uses six network-level tables based on `$wpdb->base_prefix`:
 | `fp_lti_activities` | Source site training and EasyCoach roleplay mapping |
 | `fp_lti_line_items` | AGS line-item identity and score maximum |
 | `fp_lti_launches` | Short-lived launch state, nonce hashes and audit state |
+| `fp_lti_oauth_assertions` | Hashed OAuth client-assertion identifiers for replay prevention |
 | `fp_lti_result_events` | Immutable accepted score events and payload hashes |
 | `fp_lti_current_results` | Fast latest/best learner result summary |
 
@@ -112,12 +114,33 @@ The installer is versioned through the network option
 `fp_easycoach_lti_schema_version`. Because MU plugins have no activation hook,
 the installer checks the version during WordPress `init`, uses a network lock,
 and runs `dbDelta()` only when an installation or upgrade is required. Schema
-version `2` adds hashed login/message hints and immutable target/return URL
+version `3` adds OAuth assertion replay protection. The earlier version `2`
+upgrade added hashed login/message hints and immutable target/return URL
 snapshots to pending launches; an explicit idempotent migration makes the
 state and nonce columns nullable until EasyGenerator supplies those values.
 
 No learner names or email addresses are stored in these tables. WordPress user
 IDs remain inside Focal Point and are never sent as the LTI learner identifier.
+
+`fp_lti_oauth_assertions` stores only SHA-256 hashes of accepted
+client-assertion `jti` values until they expire. It prevents replay without
+retaining EasyGenerator assertions or issued access tokens.
+
+## OAuth token service
+
+EasyGenerator requests an access token by posting `grant_type=client_credentials`,
+the standard JWT bearer `client_assertion_type`, its signed client assertion and
+one or both advertised AGS scopes to `/token`. Focal Point requires RS256,
+selects the exact `kid` from EasyGenerator's JWKS, validates the signature and
+the `iss`, `sub`, `aud`, `iat`, `exp` and `jti` claims, and atomically reserves
+the hashed `jti` against replay.
+
+Valid requests receive a signed bearer JWT with a 3600-second lifetime. The
+token contains the client ID and granted scopes but no learner data. Supported
+scopes are:
+
+- `https://purl.imsglobal.org/spec/lti-ags/scope/lineitem`
+- `https://purl.imsglobal.org/spec/lti-ags/scope/score`
 
 ### Learner subjects
 
@@ -180,6 +203,7 @@ php focalpoint-easycoach-lti/tests/smoke.php
 php focalpoint-easycoach-lti/tests/data-model.php
 php focalpoint-easycoach-lti/tests/keys-and-jwks.php
 php focalpoint-easycoach-lti/tests/oidc-launch.php
+php focalpoint-easycoach-lti/tests/oauth-token-service.php
 ```
 
 ## Retention and removal

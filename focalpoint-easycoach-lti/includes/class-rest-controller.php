@@ -14,6 +14,8 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
 
     private ?FocalPoint_EasyCoach_LTI_OIDC_Launch_Service $launch_service = null;
 
+    private ?FocalPoint_EasyCoach_LTI_OAuth_Token_Service $token_service = null;
+
     public function __construct(
         FocalPoint_EasyCoach_LTI_Configuration $configuration,
         FocalPoint_EasyCoach_LTI_Key_Provider $key_provider
@@ -26,6 +28,12 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
         FocalPoint_EasyCoach_LTI_OIDC_Launch_Service $launch_service
     ): void {
         $this->launch_service = $launch_service;
+    }
+
+    public function set_token_service(
+        FocalPoint_EasyCoach_LTI_OAuth_Token_Service $token_service
+    ): void {
+        $this->token_service = $token_service;
     }
 
     public function register_routes(): void
@@ -55,7 +63,7 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
             '/token',
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array($this, 'unavailable'),
+                'callback'            => array($this, 'token'),
                 'permission_callback' => '__return_true',
             )
         );
@@ -138,6 +146,51 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
                 'X-Content-Type-Options'  => 'nosniff',
                 'Content-Security-Policy' => $this->form_post_csp($result['redirect_uri']),
             )
+        );
+    }
+
+    /**
+     * Authenticate EasyGenerator and issue a scoped bearer access token.
+     *
+     * @param WP_REST_Request|null $request
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function token($request = null)
+    {
+        if ($this->token_service === null || !is_object($request)) {
+            return $this->unavailable();
+        }
+
+        $result = $this->token_service->issue($request->get_params(), time());
+        if (is_wp_error($result)) {
+            $data = method_exists($result, 'get_error_data')
+                ? $result->get_error_data()
+                : ($result->data ?? array());
+
+            if (!is_array($data) || !isset($data['oauth_error'])) {
+                return $result;
+            }
+
+            return new WP_REST_Response(
+                array('error' => $data['oauth_error']),
+                (int) ($data['status'] ?? 400),
+                $this->token_headers()
+            );
+        }
+
+        return new WP_REST_Response($result, 200, $this->token_headers());
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function token_headers(): array
+    {
+        return array(
+            'Cache-Control'          => 'no-store, max-age=0',
+            'Pragma'                 => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
         );
     }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Focal Point EasyCoach LTI
  * Description: Shared LTI 1.3 platform foundation for the Focal Point multisite and EasyCoach.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires PHP: 8.0
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FP_EASYCOACH_LTI_VERSION', '0.4.0');
+define('FP_EASYCOACH_LTI_VERSION', '0.5.0');
 define('FP_EASYCOACH_LTI_DIR', WPMU_PLUGIN_DIR . '/focalpoint-easycoach-lti');
 
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-configuration.php';
@@ -22,6 +22,11 @@ require_once FP_EASYCOACH_LTI_DIR . '/includes/class-user-mapper.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-launch-store.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-launch-repository.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-jwt-builder.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-assertion-replay-store.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-assertion-replay-repository.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-tool-jwks-provider.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-client-assertion-verifier.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-oauth-token-service.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-oidc-launch-service.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-launch-controller.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-rest-controller.php';
