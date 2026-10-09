@@ -20,6 +20,8 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private ?FocalPoint_EasyCoach_LTI_OIDC_Launch_Service $launch_service = null;
 
+    private ?FocalPoint_EasyCoach_LTI_OAuth_Token_Service $token_service = null;
+
     private ?FocalPoint_EasyCoach_LTI_Launch_Controller $launch_controller = null;
 
     public static function boot(): self
@@ -84,6 +86,23 @@ final class FocalPoint_EasyCoach_LTI_Plugin
             $this->configuration->key_id()
         );
 
+        $replay_store = new FocalPoint_EasyCoach_LTI_Assertion_Replay_Repository(
+            $wpdb,
+            $this->database->table_names()['oauth_assertions']
+        );
+        $tool_jwks_provider = new FocalPoint_EasyCoach_LTI_Tool_JWKS_Provider(
+            $this->configuration->tool_jwks_url()
+        );
+        $assertion_verifier = new FocalPoint_EasyCoach_LTI_Client_Assertion_Verifier(
+            $tool_jwks_provider
+        );
+        $this->token_service = new FocalPoint_EasyCoach_LTI_OAuth_Token_Service(
+            $this->configuration,
+            $assertion_verifier,
+            $replay_store,
+            $jwt_builder
+        );
+
         $this->launch_service = new FocalPoint_EasyCoach_LTI_OIDC_Launch_Service(
             $this->configuration,
             $this->user_mapper,
@@ -96,6 +115,7 @@ final class FocalPoint_EasyCoach_LTI_Plugin
         );
         $this->launch_controller->register_hooks();
         $this->rest_controller->set_launch_service($this->launch_service);
+        $this->rest_controller->set_token_service($this->token_service);
     }
 
     public function user_mapper(): ?FocalPoint_EasyCoach_LTI_User_Mapper

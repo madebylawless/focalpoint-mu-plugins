@@ -103,13 +103,12 @@ $database = new FocalPoint_EasyCoach_LTI_Database(new FocalPoint_Test_WPDB());
 $tables   = $database->table_names();
 $schema   = $database->schema_sql();
 
-test_assert(count($tables) === 6, 'The model must define six network-level tables.');
-test_assert(count($schema) === 6, 'The installer must provide one statement per table.');
+test_assert(count($tables) === 7, 'The model must define seven network-level tables.');
+test_assert(count($schema) === 7, 'The installer must provide one statement per table.');
 test_assert(
     $tables['user_map'] === 'wp_fp_lti_user_map',
     'The learner map must use the WordPress network prefix.'
 );
-
 $schema_text = implode("\n", $schema);
 foreach ($tables as $table_name) {
     test_assert(
@@ -125,6 +124,11 @@ test_assert(
 test_assert(
     !str_contains(strtolower($schema_text), 'foreign key'),
     'The dbDelta schema must not use foreign-key constraints.'
+);
+test_assert(
+    str_contains($schema_text, 'jti_hash char(64) NOT NULL')
+        && str_contains($schema_text, 'UNIQUE KEY jti_hash (jti_hash)'),
+    'OAuth client assertion identifiers must be hash-only and replay protected.'
 );
 test_assert(
     str_contains($schema_text, 'login_hint_hash char(64) NOT NULL')

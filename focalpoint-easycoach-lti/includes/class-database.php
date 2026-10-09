@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 final class FocalPoint_EasyCoach_LTI_Database
 {
-    public const SCHEMA_VERSION = '2';
+    public const SCHEMA_VERSION = '3';
 
     private const SCHEMA_OPTION = 'fp_easycoach_lti_schema_version';
     private const LOCK_OPTION   = 'fp_easycoach_lti_schema_lock';
@@ -37,6 +37,7 @@ final class FocalPoint_EasyCoach_LTI_Database
             'activities'      => $prefix . 'fp_lti_activities',
             'line_items'      => $prefix . 'fp_lti_line_items',
             'launches'        => $prefix . 'fp_lti_launches',
+            'oauth_assertions' => $prefix . 'fp_lti_oauth_assertions',
             'result_events'   => $prefix . 'fp_lti_result_events',
             'current_results' => $prefix . 'fp_lti_current_results',
         );
@@ -168,6 +169,18 @@ final class FocalPoint_EasyCoach_LTI_Database
                 UNIQUE KEY nonce_hash (nonce_hash),
                 KEY user_activity (user_map_id,activity_id),
                 KEY status_expires (status,expires_at)
+            ) {$charset_collate};",
+
+            "CREATE TABLE {$tables['oauth_assertions']} (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                jti_hash char(64) NOT NULL,
+                client_id varchar(191) NOT NULL,
+                issued_at datetime NOT NULL,
+                expires_at datetime NOT NULL,
+                created_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY jti_hash (jti_hash),
+                KEY expires_at (expires_at)
             ) {$charset_collate};",
 
             "CREATE TABLE {$tables['result_events']} (
