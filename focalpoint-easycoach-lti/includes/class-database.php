@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 final class FocalPoint_EasyCoach_LTI_Database
 {
-    public const SCHEMA_VERSION = '3';
+    public const SCHEMA_VERSION = '4';
 
     private const SCHEMA_OPTION = 'fp_easycoach_lti_schema_version';
     private const LOCK_OPTION   = 'fp_easycoach_lti_schema_lock';
@@ -73,6 +73,7 @@ final class FocalPoint_EasyCoach_LTI_Database
             }
 
             $this->normalize_launch_hash_columns();
+            $this->normalize_launch_request_hash_indexes();
 
             if ($this->schema_is_current()) {
                 update_site_option(self::SCHEMA_OPTION, self::SCHEMA_VERSION);
@@ -165,8 +166,8 @@ final class FocalPoint_EasyCoach_LTI_Database
                 UNIQUE KEY launch_id (launch_id),
                 UNIQUE KEY login_hint_hash (login_hint_hash),
                 UNIQUE KEY message_hint_hash (message_hint_hash),
-                UNIQUE KEY state_hash (state_hash),
-                UNIQUE KEY nonce_hash (nonce_hash),
+                KEY state_hash (state_hash),
+                KEY nonce_hash (nonce_hash),
                 KEY user_activity (user_map_id,activity_id),
                 KEY status_expires (status,expires_at)
             ) {$charset_collate};",
@@ -273,6 +274,47 @@ final class FocalPoint_EasyCoach_LTI_Database
         );
     }
 
+    /**
+     * The Tool owns state and nonce generation. They are retained as hashes
+     * for audit purposes, but cannot be globally unique because EasyCoach may
+     * reuse them across otherwise separate authorization requests.
+     */
+    private function normalize_launch_request_hash_indexes(): void
+    {
+        $table   = $this->table_names()['launches'];
+        $indexes = $this->wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+
+        if (!is_array($indexes)) {
+            return;
+        }
+
+        foreach (array('state_hash', 'nonce_hash') as $index_name) {
+            $matching_index = null;
+
+            foreach ($indexes as $index) {
+                if (($index['Key_name'] ?? '') === $index_name) {
+                    $matching_index = $index;
+                    break;
+                }
+            }
+
+            if ($matching_index === null) {
+                $this->wpdb->query(
+                    "ALTER TABLE {$table} ADD KEY {$index_name} ({$index_name})"
+                );
+                continue;
+            }
+
+            if ((int) ($matching_index['Non_unique'] ?? 0) === 0) {
+                $this->wpdb->query(
+                    "ALTER TABLE {$table}
+                    DROP INDEX {$index_name},
+                    ADD KEY {$index_name} ({$index_name})"
+                );
+            }
+        }
+    }
+
     private function schema_is_current(): bool
     {
         if (!$this->all_tables_exist()) {
@@ -300,6 +342,28 @@ final class FocalPoint_EasyCoach_LTI_Database
         }
 
         return ($by_name['state_hash']['Null'] ?? '') === 'YES'
-            && ($by_name['nonce_hash']['Null'] ?? '') === 'YES';
+            && ($by_name['nonce_hash']['Null'] ?? '') === 'YES'
+            && $this->launch_request_hash_indexes_are_non_unique($table);
+    }
+
+    private function launch_request_hash_indexes_are_non_unique(string $table): bool
+    {
+        $indexes = $this->wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+
+        if (!is_array($indexes)) {
+            return false;
+        }
+
+        $found = array();
+        foreach ($indexes as $index) {
+            $name = $index['Key_name'] ?? '';
+
+            if (in_array($name, array('state_hash', 'nonce_hash'), true)) {
+                $found[$name] = (int) ($index['Non_unique'] ?? 0) === 1;
+            }
+        }
+
+        return ($found['state_hash'] ?? false)
+            && ($found['nonce_hash'] ?? false);
     }
 }

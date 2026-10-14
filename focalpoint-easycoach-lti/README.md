@@ -3,6 +3,11 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.5.4` retains Tool-provided OIDC state and nonce as audit hashes but
+no longer requires them to be globally unique across launches. EasyCoach may
+reuse either value, while Focal Point's pending-to-issued launch transition
+continues to provide one-time replay protection.
+
 Version `0.5.3` resolves the learner from WordPress's signed `logged_in` cookie
 on the external OIDC return. WordPress REST cookie authentication normally
 requires a REST nonce that an external Tool cannot provide; the exception is
