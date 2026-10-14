@@ -142,6 +142,9 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
         $state        = $this->parameter($parameters, 'state');
         $nonce        = $this->parameter($parameters, 'nonce');
         $scope        = $this->parameter($parameters, 'scope');
+        $hints_absent = $login_hint === '' && $message_hint === '';
+        $hints_valid  = $this->valid_token($login_hint)
+            && $this->valid_token($message_hint);
 
         if (!hash_equals($this->configuration->client_id(), $client_id)
             || !$this->configuration->is_allowed_redirect_uri($redirect_uri)
@@ -149,18 +152,19 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             || $this->parameter($parameters, 'response_mode') !== 'form_post'
             || $this->parameter($parameters, 'prompt') !== 'none'
             || !in_array('openid', preg_split('/\s+/', trim($scope)) ?: array(), true)
-            || !$this->valid_token($login_hint)
-            || !$this->valid_token($message_hint)
+            || (!$hints_absent && !$hints_valid)
             || !$this->valid_opaque_value($state)
             || !$this->valid_opaque_value($nonce)
         ) {
             return $this->error('fp_easycoach_lti_invalid_authorization_request');
         }
 
-        $context = $this->store->find_pending(
-            hash('sha256', $login_hint),
-            hash('sha256', $message_hint)
-        );
+        $context = $hints_absent
+            ? $this->store->find_pending_for_user($current_user_id)
+            : $this->store->find_pending(
+                hash('sha256', $login_hint),
+                hash('sha256', $message_hint)
+            );
 
         if ($context === null || $current_user_id < 1
             || (int) $context['wp_user_id'] !== $current_user_id

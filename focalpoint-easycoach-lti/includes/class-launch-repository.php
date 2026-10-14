@@ -46,6 +46,23 @@ final class FocalPoint_EasyCoach_LTI_Launch_Repository implements FocalPoint_Eas
 
         $now = current_time('mysql', true);
 
+        // EasyCoach currently omits both OIDC hints when it returns to the
+        // authorization endpoint. Keep at most one fallback-eligible launch
+        // for a learner so a hintless request can never select ambiguously.
+        $superseded = $this->wpdb->query(
+            $this->wpdb->prepare(
+                "UPDATE {$this->tables['launches']}
+                SET status = 'superseded'
+                WHERE wp_user_id = %d
+                    AND status = 'pending'",
+                (int) $launch['wp_user_id']
+            )
+        );
+
+        if ($superseded === false) {
+            return false;
+        }
+
         $inserted = $this->wpdb->insert(
             $this->tables['launches'],
             array(
@@ -108,6 +125,54 @@ final class FocalPoint_EasyCoach_LTI_Launch_Repository implements FocalPoint_Eas
         );
 
         return is_array($row) ? $row : null;
+    }
+
+    public function find_pending_for_user(int $wp_user_id): ?array
+    {
+        if ($wp_user_id < 1) {
+            return null;
+        }
+
+        $launches   = $this->tables['launches'];
+        $user_map   = $this->tables['user_map'];
+        $activities = $this->tables['activities'];
+        $line_items = $this->tables['line_items'];
+
+        $rows = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT
+                    l.id AS launch_row_id,
+                    l.launch_id,
+                    l.blog_id,
+                    l.wp_user_id,
+                    l.target_link_uri,
+                    l.return_url,
+                    l.expires_at,
+                    um.lti_subject,
+                    a.resource_link_id,
+                    a.title AS resource_title,
+                    li.lineitem_key
+                FROM {$launches} l
+                INNER JOIN {$user_map} um ON um.id = l.user_map_id
+                INNER JOIN {$activities} a ON a.id = l.activity_id
+                INNER JOIN {$line_items} li ON li.id = l.lineitem_id
+                WHERE l.wp_user_id = %d
+                    AND l.status = 'pending'
+                    AND l.expires_at >= %s
+                    AND um.revoked_at IS NULL
+                ORDER BY l.id DESC
+                LIMIT 2",
+                $wp_user_id,
+                current_time('mysql', true)
+            ),
+            ARRAY_A
+        );
+
+        // Fail closed if legacy or concurrent rows leave the fallback
+        // ambiguous. A fresh launch supersedes those rows before insertion.
+        return is_array($rows) && count($rows) === 1 && is_array($rows[0])
+            ? $rows[0]
+            : null;
     }
 
     public function mark_issued(

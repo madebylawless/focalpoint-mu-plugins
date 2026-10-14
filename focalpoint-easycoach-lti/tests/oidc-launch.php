@@ -218,6 +218,17 @@ final class FocalPoint_OIDC_Test_Launch_Store implements FocalPoint_EasyCoach_LT
         return $this->pending;
     }
 
+    public function find_pending_for_user(int $wp_user_id): ?array
+    {
+        if ($this->issued || $this->pending === null
+            || (int) $this->pending['wp_user_id'] !== $wp_user_id
+        ) {
+            return null;
+        }
+
+        return $this->pending;
+    }
+
     public function mark_issued(
         int $launch_row_id,
         string $state_hash,
@@ -346,9 +357,27 @@ test_assert(
     'An unregistered redirect URI must be rejected before issuing a token.'
 );
 
-$authorization = $service->authorize($authorization_parameters, 274);
-test_assert(is_array($authorization), 'A valid Tool request must produce an authorization response.');
-test_assert($authorization['state'] === $authorization_parameters['state'], 'The Tool state must be returned unmodified.');
+$partial_hints_parameters = $authorization_parameters;
+unset($partial_hints_parameters['lti_message_hint']);
+$partial_hints = $service->authorize($partial_hints_parameters, 274);
+test_assert(
+    $partial_hints instanceof WP_Error
+        && $partial_hints->code === 'fp_easycoach_lti_invalid_authorization_request',
+    'A request containing only one OIDC hint must be rejected.'
+);
+
+$hintless_parameters = $authorization_parameters;
+unset($hintless_parameters['login_hint'], $hintless_parameters['lti_message_hint']);
+$hintless_wrong_user = $service->authorize($hintless_parameters, 999);
+test_assert(
+    $hintless_wrong_user instanceof WP_Error
+        && $hintless_wrong_user->code === 'fp_easycoach_lti_launch_not_found',
+    'A hintless request must remain bound to the logged-in WordPress learner.'
+);
+
+$authorization = $service->authorize($hintless_parameters, 274);
+test_assert(is_array($authorization), 'A valid hintless EasyCoach request must produce an authorization response.');
+test_assert($authorization['state'] === $hintless_parameters['state'], 'The Tool state must be returned unmodified.');
 test_assert($authorization['redirect_uri'] === FP_EASYCOACH_LTI_REDIRECT_URIS[0], 'The registered redirect URI must be used.');
 
 $segments = explode('.', $authorization['id_token']);
@@ -385,7 +414,7 @@ test_assert(
     'The published Platform public key must verify the ID token.'
 );
 
-$replay = $service->authorize($authorization_parameters, 274);
+$replay = $service->authorize($hintless_parameters, 274);
 test_assert(
     $replay instanceof WP_Error && $replay->code === 'fp_easycoach_lti_launch_not_found',
     'A consumed login and message hint pair must not be replayed.'

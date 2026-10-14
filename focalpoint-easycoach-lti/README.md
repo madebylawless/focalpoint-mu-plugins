@@ -3,6 +3,12 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.5.2` supports EasyCoach authorization requests that omit both OIDC
+login hints. Hint-bearing requests retain exact one-time matching; hintless
+requests are bound to the authenticated learner's single current pending
+launch, and each new launch supersedes that learner's older pending launches.
+Requests containing only one hint remain invalid.
+
 Version `0.5.1` accepts EasyCoach's fragment-based LTI target links while
 retaining fragment-free validation for Platform return and callback URLs.
 Version `0.5.0` added the LTI 1.3 OAuth 2.0 client-credentials token service.
@@ -56,8 +62,10 @@ same-origin, nonce-protected URL starts this flow:
    `login_hint` and `lti_message_hint` values.
 2. EasyGenerator sends the browser to Focal Point's `/authorize` endpoint with
    its `state`, `nonce`, client ID and an exact registered redirect URI.
-3. Focal Point validates the request, logged-in learner, one-time hints and
-   redirect URI, then signs a five-minute `LtiResourceLinkRequest` ID token.
+3. Focal Point validates the request, logged-in learner and redirect URI. It
+   uses exact one-time hint matching when EasyCoach returns both hints, or the
+   learner's single pending launch when EasyCoach omits both, then signs a
+   five-minute `LtiResourceLinkRequest` ID token.
 4. Focal Point returns an auto-submitting `form_post` containing only `state`
    and `id_token` to the registered EasyGenerator redirect URI.
 
@@ -69,7 +77,8 @@ retained for replay auditing.
 
 AI Roleplay posts are mapped lazily on their first launch. A stable activity
 and line item are reused on later launches while each learner launch receives
-fresh one-time hints.
+fresh one-time hints. Creating a launch supersedes that learner's earlier
+pending launch so EasyCoach's hintless callback cannot select ambiguously.
 
 ## Signing key and public JWKS
 
