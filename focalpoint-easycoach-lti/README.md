@@ -3,12 +3,19 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
-Version `0.5.0` adds the LTI 1.3 OAuth 2.0 client-credentials token service.
+Version `0.5.1` accepts EasyCoach's fragment-based LTI target links while
+retaining fragment-free validation for Platform return and callback URLs.
+Version `0.5.0` added the LTI 1.3 OAuth 2.0 client-credentials token service.
 It validates EasyGenerator `private_key_jwt` client assertions against the
 registered Tool JWKS, rejects assertion replay and issues one-hour RS256 bearer
 tokens restricted to the advertised AGS line-item and score scopes. Line-item
 and score routes still return a safe `503` until their complete authenticated
 service flows are implemented.
+
+EasyCoach roleplay target links may use the vendor format
+`https://easycoach.easygenerator.com/#/lti-launch/<roleplay_id>`. Only the
+expected `/lti-launch/` fragment route is accepted; unrelated fragments remain
+invalid.
 
 ## Responsibilities
 

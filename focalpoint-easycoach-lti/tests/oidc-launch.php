@@ -255,7 +255,42 @@ $service      = new FocalPoint_EasyCoach_LTI_OIDC_Launch_Service(
     $jwt_builder
 );
 
-$target_link_uri = 'https://tool.example.test/easycoach/roleplay/abc123';
+$target_link_uri = 'https://easycoach.easygenerator.com/#/lti-launch/69776beac8929b0007f59005';
+
+$invalid_target = $service->initiate(
+    274,
+    2,
+    810,
+    array(
+        'target_link_uri' => 'https://easycoach.easygenerator.com/#/unexpected/abc123',
+        'return_url'      => 'https://platform.example.test/roleplay/example/',
+        'title'           => 'Consultation roleplay',
+        'tool_resource_id' => 'easycoach-abc123',
+    )
+);
+test_assert(
+    $invalid_target instanceof WP_Error
+        && $invalid_target->code === 'fp_easycoach_lti_invalid_activity',
+    'Unexpected target-link fragments must remain rejected.'
+);
+
+$invalid_return = $service->initiate(
+    274,
+    2,
+    810,
+    array(
+        'target_link_uri' => $target_link_uri,
+        'return_url'      => 'https://platform.example.test/roleplay/example/#fragment',
+        'title'           => 'Consultation roleplay',
+        'tool_resource_id' => 'easycoach-abc123',
+    )
+);
+test_assert(
+    $invalid_return instanceof WP_Error
+        && $invalid_return->code === 'fp_easycoach_lti_invalid_activity',
+    'Platform return URLs must continue to reject fragments.'
+);
+
 $initiation_url  = $service->initiate(
     274,
     2,

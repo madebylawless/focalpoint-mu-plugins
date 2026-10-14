@@ -60,7 +60,7 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
         $title           = $this->clean_title($this->activity_string($activity, 'title'));
         $tool_resource   = $this->activity_string($activity, 'tool_resource_id');
 
-        if (!$this->is_https_endpoint($target_link_uri)
+        if (!$this->is_https_target_link_uri($target_link_uri)
             || !$this->is_https_endpoint($return_url)
             || $title === ''
         ) {
@@ -253,12 +253,28 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             : substr($title, 0, 255);
     }
 
-    private function is_https_endpoint(string $url): bool
+    private function is_https_target_link_uri(string $url): bool
     {
-        return wp_parse_url($url, PHP_URL_SCHEME) === 'https'
+        if (!$this->is_https_endpoint($url, true)) {
+            return false;
+        }
+
+        $fragment = wp_parse_url($url, PHP_URL_FRAGMENT);
+
+        return $fragment === null
+            || (is_string($fragment)
+                && preg_match('#^/lti-launch/[A-Za-z0-9_-]{1,191}$#D', $fragment) === 1);
+    }
+
+    private function is_https_endpoint(string $url, bool $allow_fragment = false): bool
+    {
+        return $url !== ''
+            && strlen($url) <= 2048
+            && preg_match('/[\x00-\x20\x7F]/', $url) !== 1
+            && wp_parse_url($url, PHP_URL_SCHEME) === 'https'
             && is_string(wp_parse_url($url, PHP_URL_HOST))
             && wp_parse_url($url, PHP_URL_HOST) !== ''
-            && wp_parse_url($url, PHP_URL_FRAGMENT) === null
+            && ($allow_fragment || wp_parse_url($url, PHP_URL_FRAGMENT) === null)
             && wp_parse_url($url, PHP_URL_USER) === null
             && wp_parse_url($url, PHP_URL_PASS) === null;
     }
