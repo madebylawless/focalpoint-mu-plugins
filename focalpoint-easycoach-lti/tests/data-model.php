@@ -7,6 +7,7 @@ declare(strict_types=1);
  */
 
 define('ABSPATH', __DIR__ . '/wordpress/');
+define('ARRAY_A', 'ARRAY_A');
 
 final class WP_Error
 {
@@ -93,13 +94,48 @@ final class FocalPoint_Test_WPDB
 {
     public string $base_prefix = 'wp_';
 
+    /** @var array<int,array<string,string|int>> */
+    public array $indexes = array(
+        array('Key_name' => 'state_hash', 'Column_name' => 'state_hash', 'Non_unique' => '0'),
+        array('Key_name' => 'nonce_hash', 'Column_name' => 'nonce_hash', 'Non_unique' => '0'),
+    );
+
+    /** @var string[] */
+    public array $queries = array();
+
     public function get_charset_collate(): string
     {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci';
     }
+
+    public function get_results(string $query, $output = null): array
+    {
+        return str_starts_with($query, 'SHOW INDEX FROM ')
+            ? $this->indexes
+            : array();
+    }
+
+    public function query(string $query): int
+    {
+        $this->queries[] = $query;
+
+        foreach (array('state_hash', 'nonce_hash') as $index_name) {
+            if (str_contains($query, "DROP INDEX {$index_name}")) {
+                foreach ($this->indexes as &$index) {
+                    if ($index['Key_name'] === $index_name) {
+                        $index['Non_unique'] = '1';
+                    }
+                }
+                unset($index);
+            }
+        }
+
+        return 1;
+    }
 }
 
-$database = new FocalPoint_EasyCoach_LTI_Database(new FocalPoint_Test_WPDB());
+$test_wpdb = new FocalPoint_Test_WPDB();
+$database  = new FocalPoint_EasyCoach_LTI_Database($test_wpdb);
 $tables   = $database->table_names();
 $schema   = $database->schema_sql();
 
@@ -137,8 +173,28 @@ test_assert(
 );
 test_assert(
     str_contains($schema_text, 'state_hash char(64) DEFAULT NULL')
-        && str_contains($schema_text, 'nonce_hash char(64) DEFAULT NULL'),
-    'State and nonce hashes must remain nullable until authorization.'
+        && str_contains($schema_text, 'nonce_hash char(64) DEFAULT NULL')
+        && str_contains($schema_text, 'KEY state_hash (state_hash)')
+        && str_contains($schema_text, 'KEY nonce_hash (nonce_hash)')
+        && !str_contains($schema_text, 'UNIQUE KEY state_hash (state_hash)')
+        && !str_contains($schema_text, 'UNIQUE KEY nonce_hash (nonce_hash)'),
+    'State and nonce hashes must remain nullable and non-unique until authorization.'
+);
+
+$normalize_indexes = new ReflectionMethod(
+    FocalPoint_EasyCoach_LTI_Database::class,
+    'normalize_launch_request_hash_indexes'
+);
+$normalize_indexes->setAccessible(true);
+$normalize_indexes->invoke($database);
+
+test_assert(
+    count($test_wpdb->queries) === 2
+        && str_contains($test_wpdb->queries[0], 'DROP INDEX state_hash')
+        && str_contains($test_wpdb->queries[0], 'ADD KEY state_hash (state_hash)')
+        && str_contains($test_wpdb->queries[1], 'DROP INDEX nonce_hash')
+        && str_contains($test_wpdb->queries[1], 'ADD KEY nonce_hash (nonce_hash)'),
+    'The schema upgrade must replace legacy unique state and nonce indexes.'
 );
 
 $store  = new FocalPoint_Test_User_Map_Store();
