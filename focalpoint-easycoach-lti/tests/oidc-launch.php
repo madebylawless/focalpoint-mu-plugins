@@ -122,7 +122,19 @@ function rest_url($path = ''): string
 
 function get_current_user_id(): int
 {
-    return 274;
+    return (int) ($GLOBALS['test_current_user_id'] ?? 274);
+}
+
+function wp_validate_auth_cookie($cookie = '', $scheme = '')
+{
+    return (int) ($GLOBALS['test_auth_cookie_user_id'] ?? 0);
+}
+
+function wp_set_current_user($user_id)
+{
+    $GLOBALS['test_current_user_id'] = (int) $user_id;
+
+    return (object) array('ID' => (int) $user_id);
 }
 
 function esc_attr($value): string
@@ -211,6 +223,17 @@ final class FocalPoint_OIDC_Test_Launch_Store implements FocalPoint_EasyCoach_LT
         if ($this->issued || $this->pending === null
             || $this->pending['login_hint_hash'] !== $login_hint_hash
             || $this->pending['message_hint_hash'] !== $message_hint_hash
+        ) {
+            return null;
+        }
+
+        return $this->pending;
+    }
+
+    public function find_pending_for_user(int $wp_user_id): ?array
+    {
+        if ($this->issued || $this->pending === null
+            || (int) $this->pending['wp_user_id'] !== $wp_user_id
         ) {
             return null;
         }
@@ -346,9 +369,27 @@ test_assert(
     'An unregistered redirect URI must be rejected before issuing a token.'
 );
 
-$authorization = $service->authorize($authorization_parameters, 274);
-test_assert(is_array($authorization), 'A valid Tool request must produce an authorization response.');
-test_assert($authorization['state'] === $authorization_parameters['state'], 'The Tool state must be returned unmodified.');
+$partial_hints_parameters = $authorization_parameters;
+unset($partial_hints_parameters['lti_message_hint']);
+$partial_hints = $service->authorize($partial_hints_parameters, 274);
+test_assert(
+    $partial_hints instanceof WP_Error
+        && $partial_hints->code === 'fp_easycoach_lti_invalid_authorization_request',
+    'A request containing only one OIDC hint must be rejected.'
+);
+
+$hintless_parameters = $authorization_parameters;
+unset($hintless_parameters['login_hint'], $hintless_parameters['lti_message_hint']);
+$hintless_wrong_user = $service->authorize($hintless_parameters, 999);
+test_assert(
+    $hintless_wrong_user instanceof WP_Error
+        && $hintless_wrong_user->code === 'fp_easycoach_lti_launch_not_found',
+    'A hintless request must remain bound to the logged-in WordPress learner.'
+);
+
+$authorization = $service->authorize($hintless_parameters, 274);
+test_assert(is_array($authorization), 'A valid hintless EasyCoach request must produce an authorization response.');
+test_assert($authorization['state'] === $hintless_parameters['state'], 'The Tool state must be returned unmodified.');
 test_assert($authorization['redirect_uri'] === FP_EASYCOACH_LTI_REDIRECT_URIS[0], 'The registered redirect URI must be used.');
 
 $segments = explode('.', $authorization['id_token']);
@@ -385,7 +426,7 @@ test_assert(
     'The published Platform public key must verify the ID token.'
 );
 
-$replay = $service->authorize($authorization_parameters, 274);
+$replay = $service->authorize($hintless_parameters, 274);
 test_assert(
     $replay instanceof WP_Error && $replay->code === 'fp_easycoach_lti_launch_not_found',
     'A consumed login and message hint pair must not be replayed.'
@@ -414,9 +455,15 @@ $rest_controller = new FocalPoint_EasyCoach_LTI_REST_Controller(
 );
 $rest_controller->set_launch_service($service);
 $request       = new WP_REST_Request($form_parameters);
+$GLOBALS['test_current_user_id']    = 0;
+$GLOBALS['test_auth_cookie_user_id'] = 274;
 $form_response = $rest_controller->authorize($request);
 
 test_assert($form_response instanceof WP_REST_Response, 'The REST authorization endpoint must return an HTML response.');
+test_assert(
+    $GLOBALS['test_current_user_id'] === 274,
+    'The external OIDC return must resolve the learner from the signed WordPress login cookie.'
+);
 test_assert($form_response->get_status() === 200, 'A valid REST authorization request must return HTTP 200.');
 test_assert(
     str_contains($form_response->get_data(), 'name="id_token"')
