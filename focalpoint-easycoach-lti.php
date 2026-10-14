@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Focal Point EasyCoach LTI
  * Description: Shared LTI 1.3 platform foundation for the Focal Point multisite and EasyCoach.
- * Version: 0.5.4
+ * Version: 0.5.5
  * Requires PHP: 8.0
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FP_EASYCOACH_LTI_VERSION', '0.5.4');
+define('FP_EASYCOACH_LTI_VERSION', '0.5.5');
 define('FP_EASYCOACH_LTI_DIR', WPMU_PLUGIN_DIR . '/focalpoint-easycoach-lti');
 
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-configuration.php';

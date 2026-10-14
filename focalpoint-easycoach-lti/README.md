@@ -3,6 +3,11 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.5.5` includes the authenticated WordPress account email in the LTI
+ID token because EasyCoach requires it to identify or provision the learner.
+Optional name claims remain excluded, and launches fail closed when the
+WordPress account has no valid email address.
+
 Version `0.5.4` retains Tool-provided OIDC state and nonce as audit hashes but
 no longer requires them to be globally unique across launches. EasyCoach may
 reuse either value, while Focal Point's pending-to-issued launch transition
@@ -80,10 +85,11 @@ same-origin, nonce-protected URL starts this flow:
 4. Focal Point returns an auto-submitting `form_post` containing only `state`
    and `id_token` to the registered EasyGenerator redirect URI.
 
-The token contains the learner's opaque `fp_...` subject, learner role,
+The token contains the learner's opaque `fp_...` subject, account email,
+learner role,
 deployment, stable resource-link identity, target URI, return URL and the AGS
-line-item endpoint. It deliberately excludes the learner's WordPress ID, name
-and email address. Each hint pair is single-use; state and nonce hashes are
+line-item endpoint. It deliberately excludes the learner's WordPress ID and
+optional name claims. Each hint pair is single-use; state and nonce hashes are
 retained for replay auditing.
 
 AI Roleplay posts are mapped lazily on their first launch. A stable activity

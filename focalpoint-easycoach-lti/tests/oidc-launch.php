@@ -144,7 +144,12 @@ function esc_attr($value): string
 
 function get_userdata($wp_user_id)
 {
-    return (int) $wp_user_id === 274 ? (object) array('ID' => 274) : false;
+    return (int) $wp_user_id === 274
+        ? (object) array(
+            'ID'         => 274,
+            'user_email' => (string) ($GLOBALS['test_user_email'] ?? 'learner@example.test'),
+        )
+        : false;
 }
 
 function test_assert(bool $condition, string $message): void
@@ -387,6 +392,15 @@ test_assert(
     'A hintless request must remain bound to the logged-in WordPress learner.'
 );
 
+$GLOBALS['test_user_email'] = '';
+$missing_email = $service->authorize($hintless_parameters, 274);
+test_assert(
+    $missing_email instanceof WP_Error
+        && $missing_email->code === 'fp_easycoach_lti_learner_email_unavailable',
+    'A launch must fail closed when the WordPress learner has no valid email.'
+);
+$GLOBALS['test_user_email'] = 'learner@example.test';
+
 $authorization = $service->authorize($hintless_parameters, 274);
 test_assert(is_array($authorization), 'A valid hintless EasyCoach request must produce an authorization response.');
 test_assert($authorization['state'] === $hintless_parameters['state'], 'The Tool state must be returned unmodified.');
@@ -417,7 +431,14 @@ test_assert(
         === 'https://platform.example.test/wp-json/focalpoint-lti/v1/lineitems/' . $launch_store->pending['lineitem_key'],
     'The launch must advertise its stable line-item endpoint.'
 );
-test_assert(!isset($claims['email'], $claims['name'], $claims['given_name']), 'The launch must not disclose learner PII.');
+test_assert(
+    $claims['email'] === 'learner@example.test',
+    'The launch must provide the authenticated learner email required by EasyCoach.'
+);
+test_assert(
+    !isset($claims['name'], $claims['given_name'], $claims['family_name']),
+    'The launch must not disclose optional learner name claims.'
+);
 
 $details   = openssl_pkey_get_details($key_resource);
 $signature = test_base64url_decode($segments[2]);

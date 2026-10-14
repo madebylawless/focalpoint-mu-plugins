@@ -172,6 +172,11 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             return $this->error('fp_easycoach_lti_launch_not_found', 401);
         }
 
+        $learner_email = $this->learner_email((int) $context['wp_user_id']);
+        if ($learner_email === '') {
+            return $this->error('fp_easycoach_lti_learner_email_unavailable', 422);
+        }
+
         $now          = time();
         $lineitem_url = rest_url(
             'focalpoint-lti/v1/lineitems/' . rawurlencode((string) $context['lineitem_key'])
@@ -180,6 +185,7 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             'iss' => $this->configuration->issuer(),
             'aud' => $this->configuration->client_id(),
             'sub' => (string) $context['lti_subject'],
+            'email' => $learner_email,
             'iat' => $now,
             'exp' => $now + self::LAUNCH_TTL,
             'nonce' => $nonce,
@@ -309,6 +315,22 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             0,
             32
         );
+    }
+
+    private function learner_email(int $wp_user_id): string
+    {
+        $user = get_userdata($wp_user_id);
+        if (!is_object($user) || !isset($user->user_email)
+            || !is_string($user->user_email)
+        ) {
+            return '';
+        }
+
+        $email = trim($user->user_email);
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false
+            ? $email
+            : '';
     }
 
     /**
