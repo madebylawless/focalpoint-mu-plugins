@@ -3,6 +3,12 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.5.3` resolves the learner from WordPress's signed `logged_in` cookie
+on the external OIDC return. WordPress REST cookie authentication normally
+requires a REST nonce that an external Tool cannot provide; the exception is
+limited to this authorization endpoint and does not weaken Tool registration
+or launch validation.
+
 Version `0.5.2` supports EasyCoach authorization requests that omit both OIDC
 login hints. Hint-bearing requests retain exact one-time matching; hintless
 requests are bound to the authenticated learner's single current pending

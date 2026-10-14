@@ -128,7 +128,7 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
 
         $result = $this->launch_service->authorize(
             $request->get_params(),
-            get_current_user_id()
+            $this->authorization_user_id()
         );
 
         if (is_wp_error($result)) {
@@ -147,6 +147,30 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
                 'Content-Security-Policy' => $this->form_post_csp($result['redirect_uri']),
             )
         );
+    }
+
+    /**
+     * Resolve the signed WordPress login cookie for the external OIDC return.
+     *
+     * WordPress REST cookie authentication deliberately clears the current
+     * user when a REST nonce is absent. EasyCoach cannot send that nonce, so
+     * validate the existing logged-in cookie directly for this endpoint.
+     */
+    private function authorization_user_id(): int
+    {
+        $user_id = get_current_user_id();
+
+        if ($user_id > 0 || !function_exists('wp_validate_auth_cookie')) {
+            return $user_id;
+        }
+
+        $user_id = (int) wp_validate_auth_cookie('', 'logged_in');
+
+        if ($user_id > 0 && function_exists('wp_set_current_user')) {
+            wp_set_current_user($user_id);
+        }
+
+        return $user_id;
     }
 
     /**

@@ -122,7 +122,19 @@ function rest_url($path = ''): string
 
 function get_current_user_id(): int
 {
-    return 274;
+    return (int) ($GLOBALS['test_current_user_id'] ?? 274);
+}
+
+function wp_validate_auth_cookie($cookie = '', $scheme = '')
+{
+    return (int) ($GLOBALS['test_auth_cookie_user_id'] ?? 0);
+}
+
+function wp_set_current_user($user_id)
+{
+    $GLOBALS['test_current_user_id'] = (int) $user_id;
+
+    return (object) array('ID' => (int) $user_id);
 }
 
 function esc_attr($value): string
@@ -443,9 +455,15 @@ $rest_controller = new FocalPoint_EasyCoach_LTI_REST_Controller(
 );
 $rest_controller->set_launch_service($service);
 $request       = new WP_REST_Request($form_parameters);
+$GLOBALS['test_current_user_id']    = 0;
+$GLOBALS['test_auth_cookie_user_id'] = 274;
 $form_response = $rest_controller->authorize($request);
 
 test_assert($form_response instanceof WP_REST_Response, 'The REST authorization endpoint must return an HTML response.');
+test_assert(
+    $GLOBALS['test_current_user_id'] === 274,
+    'The external OIDC return must resolve the learner from the signed WordPress login cookie.'
+);
 test_assert($form_response->get_status() === 200, 'A valid REST authorization request must return HTTP 200.');
 test_assert(
     str_contains($form_response->get_data(), 'name="id_token"')
