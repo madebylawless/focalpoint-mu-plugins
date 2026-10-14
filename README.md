@@ -30,7 +30,9 @@ Grade Services (AGS).
 - Bootstrap: `focalpoint-easycoach-lti.php`
 - Implementation and documentation: `focalpoint-easycoach-lti/`
 
-Version `0.5.0` adds the OAuth 2.0 client-credentials token service with
+Version `0.5.1` adds compatibility with EasyCoach's fragment-based LTI launch
+links while preserving strict Platform URL validation. Version `0.5.0` added
+the OAuth 2.0 client-credentials token service with
 EasyGenerator JWKS validation, client-assertion replay protection and scoped,
 one-hour RS256 bearer tokens. It retains the LTI 1.3 OIDC resource-link launch,
 protected signing-key handling and pseudonymous learner mapping. Line-item and
