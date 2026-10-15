@@ -383,6 +383,9 @@ final class FocalPoint_EasyCoach_LTI_Result_Summary_Service implements FocalPoin
             'abandoned_attempt_count'  => $abandoned,
             'in_progress_attempt_count' => $in_progress,
             'grading_failed_count'     => $grading_failed,
+            'latest_attempt_status'    => $attempts === array()
+                ? null
+                : $attempts[array_key_last($attempts)]['status'],
             'completed'                => (int) ($current['completed'] ?? 0) === 1,
             'passed'                   => $this->nullable_bool($current['passed'] ?? null),
             'latest_activity_progress' => $current['activity_progress'] ?? null,

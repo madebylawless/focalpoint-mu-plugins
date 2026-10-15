@@ -30,6 +30,10 @@ Grade Services (AGS).
 - Bootstrap: `focalpoint-easycoach-lti.php`
 - Implementation and documentation: `focalpoint-easycoach-lti/`
 
+Version `0.6.2` adds an explicit top-level `latest_attempt_status` to the
+derived learner summary, distinguishing the newest launch state from the
+latest result received through AGS.
+
 Version `0.6.1` adds a derived `easycoach-current-result.json` for each learner
 and roleplay. It records completed-attempt and launch counts, every completion
 date, current and best scores, roleplay title and slug, and internal

@@ -119,7 +119,8 @@ test_assert(
         && $document['completed_attempt_count'] === 1
         && $document['incomplete_attempt_count'] === 2
         && $document['abandoned_attempt_count'] === 1
-        && $document['in_progress_attempt_count'] === 1,
+        && $document['in_progress_attempt_count'] === 1
+        && $document['latest_attempt_status'] === 'in_progress',
     'The summary must distinguish completed, abandoned and active launches.'
 );
 test_assert(
@@ -146,7 +147,8 @@ $old_launch = array(
 );
 $old_document = $document_method->invoke($service, $identity, $old_launch, null, $now);
 test_assert(
-    $old_document['attempts'][0]['status'] === 'abandoned',
+    $old_document['attempts'][0]['status'] === 'abandoned'
+        && $old_document['latest_attempt_status'] === 'abandoned',
     'An unfinished launch must become abandoned after the configured timeout.'
 );
 

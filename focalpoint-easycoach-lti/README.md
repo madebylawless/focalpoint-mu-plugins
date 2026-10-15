@@ -3,6 +3,12 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.6.2` adds `latest_attempt_status` to the top-level current-result
+document. This describes the newest launch as `in_progress`, `completed`,
+`abandoned` or `grading_failed`, while `completed` and the top-level AGS
+progress fields continue to describe the latest result received from
+EasyCoach.
+
 Version `0.6.1` adds a derived current-result document for each learner and
 roleplay. It includes the roleplay title and slug, completed-attempt and launch
 counts, all completion dates, latest and best scores, and per-launch internal
