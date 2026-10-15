@@ -7,6 +7,7 @@ if (!defined('ABSPATH')) {
 final class FocalPoint_EasyCoach_LTI_Configuration
 {
     private const DEFAULT_TOOL_JWKS_URL = 'https://lti.easygenerator.com/api/v1/jwks';
+    private const DEFAULT_ABANDONED_AFTER = 86400;
 
     public function is_enabled(): bool
     {
@@ -51,6 +52,24 @@ final class FocalPoint_EasyCoach_LTI_Configuration
     public function initiate_login_url(): string
     {
         return $this->string_constant('FP_EASYCOACH_LTI_INITIATE_LOGIN_URL');
+    }
+
+    /**
+     * Return the inactivity period after which an unfinished launch is
+     * classified as abandoned in Focal Point's internal summary.
+     */
+    public function abandoned_after_seconds(): int
+    {
+        if (!defined('FP_EASYCOACH_LTI_ABANDONED_AFTER_SECONDS')) {
+            return self::DEFAULT_ABANDONED_AFTER;
+        }
+
+        $value = constant('FP_EASYCOACH_LTI_ABANDONED_AFTER_SECONDS');
+        if (!is_int($value) && !is_numeric($value)) {
+            return self::DEFAULT_ABANDONED_AFTER;
+        }
+
+        return max(3600, min(30 * 86400, (int) $value));
     }
 
     /**

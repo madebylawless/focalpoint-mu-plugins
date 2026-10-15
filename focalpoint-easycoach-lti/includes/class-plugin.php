@@ -24,6 +24,8 @@ final class FocalPoint_EasyCoach_LTI_Plugin
 
     private ?FocalPoint_EasyCoach_LTI_AGS_Service $ags_service = null;
 
+    private ?FocalPoint_EasyCoach_LTI_Result_Summary_Service $summary_service = null;
+
     private ?FocalPoint_EasyCoach_LTI_Launch_Controller $launch_controller = null;
 
     public static function boot(): self
@@ -113,11 +115,19 @@ final class FocalPoint_EasyCoach_LTI_Plugin
             $wpdb,
             $this->database->table_names()
         );
+        $profile_sync = new FocalPoint_EasyCoach_LTI_Profile_Result_Sync();
+        $this->summary_service = new FocalPoint_EasyCoach_LTI_Result_Summary_Service(
+            $wpdb,
+            $this->database->table_names(),
+            $this->configuration,
+            $profile_sync
+        );
+        $this->summary_service->register_hooks();
         $this->ags_service = new FocalPoint_EasyCoach_LTI_AGS_Service(
             $access_token_verifier,
             $result_store,
             new FocalPoint_EasyCoach_LTI_Result_Payload_Repository(),
-            new FocalPoint_EasyCoach_LTI_Profile_Result_Sync()
+            $this->summary_service
         );
 
         $this->launch_service = new FocalPoint_EasyCoach_LTI_OIDC_Launch_Service(

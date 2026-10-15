@@ -33,18 +33,18 @@ final class FocalPoint_EasyCoach_LTI_AGS_Service
 
     private FocalPoint_EasyCoach_LTI_Result_Payload_Store $payload_store;
 
-    private FocalPoint_EasyCoach_LTI_Profile_Result_Sync $profile_sync;
+    private FocalPoint_EasyCoach_LTI_Result_Summary_Writer $summary_writer;
 
     public function __construct(
         FocalPoint_EasyCoach_LTI_Access_Token_Verifier $token_verifier,
         FocalPoint_EasyCoach_LTI_Result_Store $result_store,
         FocalPoint_EasyCoach_LTI_Result_Payload_Store $payload_store,
-        FocalPoint_EasyCoach_LTI_Profile_Result_Sync $profile_sync
+        FocalPoint_EasyCoach_LTI_Result_Summary_Writer $summary_writer
     ) {
         $this->token_verifier = $token_verifier;
         $this->result_store   = $result_store;
         $this->payload_store  = $payload_store;
-        $this->profile_sync   = $profile_sync;
+        $this->summary_writer = $summary_writer;
     }
 
     /**
@@ -181,24 +181,7 @@ final class FocalPoint_EasyCoach_LTI_AGS_Service
             return $recorded;
         }
 
-        if (($recorded['current_updated'] ?? false) === true) {
-            $this->profile_sync->sync(
-                $learner,
-                array(
-                    'roleplay_post_id' => (int) $learner['training_post_id'],
-                    'lineitem_key'     => $lineitem_key,
-                    'latest_score'     => $normalized,
-                    'score_given'      => $score_given,
-                    'score_maximum'    => $score_maximum,
-                    'activity_progress' => (string) $validated['activityProgress'],
-                    'grading_progress' => (string) $validated['gradingProgress'],
-                    'completed'        => $validated['activityProgress'] === 'Completed',
-                    'result_timestamp' => (string) $validated['timestamp_iso'],
-                    'payload_path'     => $payload_path,
-                    'updated_at'       => $received_at,
-                )
-            );
-        }
+        $this->summary_writer->refresh($learner, $now);
 
         return $recorded;
     }

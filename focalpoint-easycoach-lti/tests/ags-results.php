@@ -175,8 +175,8 @@ require dirname(__DIR__) . '/includes/class-jwt-builder.php';
 require dirname(__DIR__) . '/includes/class-access-token-verifier.php';
 require dirname(__DIR__) . '/includes/interface-result-store.php';
 require dirname(__DIR__) . '/includes/interface-result-payload-store.php';
+require dirname(__DIR__) . '/includes/interface-result-summary-writer.php';
 require dirname(__DIR__) . '/includes/class-result-payload-repository.php';
-require dirname(__DIR__) . '/includes/class-profile-result-sync.php';
 require dirname(__DIR__) . '/includes/class-ags-service.php';
 
 final class FocalPoint_AGS_Test_Result_Store implements FocalPoint_EasyCoach_LTI_Result_Store
@@ -245,6 +245,22 @@ final class FocalPoint_AGS_Test_Result_Store implements FocalPoint_EasyCoach_LTI
     }
 }
 
+final class FocalPoint_AGS_Test_Summary_Writer implements FocalPoint_EasyCoach_LTI_Result_Summary_Writer
+{
+    /** @var array<int,array{context:array<string,mixed>,now:int}> */
+    public array $refreshes = array();
+
+    public function refresh(array $context, int $now): bool
+    {
+        $this->refreshes[] = array(
+            'context' => $context,
+            'now'     => $now,
+        );
+
+        return true;
+    }
+}
+
 $configuration = new FocalPoint_EasyCoach_LTI_Configuration();
 $key_provider  = new FocalPoint_EasyCoach_LTI_Key_Provider(
     $configuration->key_id(),
@@ -261,11 +277,12 @@ $token_verifier = new FocalPoint_EasyCoach_LTI_Access_Token_Verifier(
 );
 $result_store  = new FocalPoint_AGS_Test_Result_Store();
 $payload_store = new FocalPoint_EasyCoach_LTI_Result_Payload_Repository();
+$summary_writer = new FocalPoint_AGS_Test_Summary_Writer();
 $service       = new FocalPoint_EasyCoach_LTI_AGS_Service(
     $token_verifier,
     $result_store,
     $payload_store,
-    new FocalPoint_EasyCoach_LTI_Profile_Result_Sync()
+    $summary_writer
 );
 
 $now = time();
@@ -316,8 +333,10 @@ test_assert(
     'An expired AGS bearer token must be rejected.'
 );
 
-$tampered_token = substr($lineitem_token, 0, -1)
-    . (substr($lineitem_token, -1) === 'A' ? 'B' : 'A');
+$tampered_parts = explode('.', substr($lineitem_token, 7));
+$tampered_parts[2] = ($tampered_parts[2][0] === 'A' ? 'B' : 'A')
+    . substr($tampered_parts[2], 1);
+$tampered_token = 'Bearer ' . implode('.', $tampered_parts);
 $tampered_lineitem = $service->lineitem('fp_li_test', $tampered_token, $now);
 test_assert(
     $tampered_lineitem instanceof WP_Error
@@ -359,9 +378,9 @@ test_assert(
     'The attempt identifier and payload must be retained without the bearer token.'
 );
 test_assert(
-    isset($test_profile_meta[900]['_fp_easycoach_roleplay_results']['1889'])
-        && $test_profile_meta[900]['_fp_easycoach_roleplay_results']['1889']['latest_score'] === 0.88,
-    'The current normalized result must be mirrored onto the learner profile CPT.'
+    count($summary_writer->refreshes) === 1
+        && $summary_writer->refreshes[0]['context']['training_post_id'] === 1889,
+    'An accepted result must refresh the learner roleplay summary.'
 );
 
 $duplicate = $service->publish_score(
@@ -374,7 +393,8 @@ $duplicate = $service->publish_score(
 test_assert(
     is_array($duplicate)
         && ($duplicate['duplicate'] ?? false) === true
-        && count($result_store->events) === 1,
+        && count($result_store->events) === 1
+        && count($summary_writer->refreshes) === 2,
     'An identical callback replay must be idempotent.'
 );
 

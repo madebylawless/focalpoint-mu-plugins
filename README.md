@@ -30,12 +30,18 @@ Grade Services (AGS).
 - Bootstrap: `focalpoint-easycoach-lti.php`
 - Implementation and documentation: `focalpoint-easycoach-lti/`
 
-Version `0.6.0` implements the authenticated AGS line-item and score services.
-EasyCoach score callbacks are validated, stored idempotently as immutable
-events, summarized in the network result tables, written to the learner's
-uploads directory and mirrored onto the learner's profile CPT. It retains the
-LTI 1.3 OIDC resource-link launch, protected signing-key handling,
-pseudonymous learner mapping and scoped OAuth token service.
+Version `0.6.1` adds a derived `easycoach-current-result.json` for each learner
+and roleplay. It records completed-attempt and launch counts, every completion
+date, current and best scores, roleplay title and slug, and internal
+in-progress, completed, abandoned or grading-failed launch states. The same
+summary is mirrored onto the learner's profile CPT when exactly one profile
+exists.
+
+The underlying authenticated AGS callbacks remain unchanged: EasyCoach data
+is validated and stored idempotently as immutable events, with the network
+result tables remaining canonical. The plugin retains its LTI 1.3 OIDC
+resource-link launch, protected signing-key handling, pseudonymous learner
+mapping and scoped OAuth token service.
 
 The security and protocol implementation belongs in this repository. Learner
 interface components remain in the `rayner_focalpoint` theme, and KPI/reporting

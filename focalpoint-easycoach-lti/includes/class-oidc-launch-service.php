@@ -227,6 +227,10 @@ final class FocalPoint_EasyCoach_LTI_OIDC_Launch_Service
             return $this->error('fp_easycoach_lti_launch_already_used', 409);
         }
 
+        if (function_exists('do_action')) {
+            do_action('fp_easycoach_lti_launch_issued', $context);
+        }
+
         return array(
             'redirect_uri' => $redirect_uri,
             'state'        => $state,

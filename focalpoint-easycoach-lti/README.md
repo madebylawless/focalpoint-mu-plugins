@@ -3,6 +3,15 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.6.1` adds a derived current-result document for each learner and
+roleplay. It includes the roleplay title and slug, completed-attempt and launch
+counts, all completion dates, latest and best scores, and per-launch internal
+states. Unfinished launches are classified as abandoned after 24 hours or as
+soon as that learner starts a later launch of the same roleplay. An hourly
+reconciliation keeps these derived states current even when EasyCoach sends no
+closing callback. These internal states do not alter or get returned through
+the LTI or AGS protocols.
+
 Version `0.6.0` activates the Assignment and Grade Services line-item and
 score routes. Focal Point verifies its signed bearer access token and required
 scope on every request, validates the AGS media type and score representation,
@@ -188,11 +197,17 @@ existing learner directory:
 uploads[/sites/{site_id}]/{user_login}/__easycoach_roleplays__/{roleplay_slug}/
 ```
 
-Only the relative payload path is stored in the database. The current result
-summary is mirrored to the learner's single `user-profiles` post under the
-private `_fp_easycoach_roleplay_results` post-meta key. The network result
-tables remain canonical if that asynchronously maintained profile post is
-temporarily absent.
+Each immutable callback uses an `easycoach-result-{event_hash}.json` filename.
+The same directory also contains `easycoach-current-result.json`, a replaceable
+derived view of the complete launch history for that learner and roleplay. It
+contains roleplay identity, completed-attempt and launch counts, every
+completion date, latest and best scores, and an ordered launch list. Only callback
+payload paths are stored in the event table.
+
+The complete derived summary is mirrored to the learner's single
+`user-profiles` post under the private `_fp_easycoach_roleplay_results`
+post-meta key. The network result tables remain canonical if that
+asynchronously maintained profile post is temporarily absent.
 
 ## OAuth token service
 
@@ -245,6 +260,9 @@ define('FP_EASYCOACH_LTI_INITIATE_LOGIN_URL', '');
 define('FP_EASYCOACH_LTI_REDIRECT_URIS', array(
     '',
 ));
+
+// Optional: defaults to 86400 (24 hours), minimum 1 hour, maximum 30 days.
+define('FP_EASYCOACH_LTI_ABANDONED_AFTER_SECONDS', 86400);
 ```
 
 `FP_EASYCOACH_LTI_INITIATE_LOGIN_URL` is the EasyGenerator third-party login
@@ -273,6 +291,7 @@ php focalpoint-easycoach-lti/tests/keys-and-jwks.php
 php focalpoint-easycoach-lti/tests/oidc-launch.php
 php focalpoint-easycoach-lti/tests/oauth-token-service.php
 php focalpoint-easycoach-lti/tests/ags-results.php
+php focalpoint-easycoach-lti/tests/result-summary.php
 ```
 
 ## Retention and removal
