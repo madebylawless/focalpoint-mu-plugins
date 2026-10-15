@@ -100,11 +100,15 @@ final class FocalPoint_EasyCoach_LTI_Launch_Repository implements FocalPoint_Eas
                     l.launch_id,
                     l.blog_id,
                     l.wp_user_id,
+                    l.user_map_id,
+                    l.activity_id,
+                    l.lineitem_id,
                     l.target_link_uri,
                     l.return_url,
                     l.expires_at,
                     um.lti_subject,
                     a.resource_link_id,
+                    a.training_post_id,
                     a.title AS resource_title,
                     li.lineitem_key
                 FROM {$launches} l
@@ -145,11 +149,15 @@ final class FocalPoint_EasyCoach_LTI_Launch_Repository implements FocalPoint_Eas
                     l.launch_id,
                     l.blog_id,
                     l.wp_user_id,
+                    l.user_map_id,
+                    l.activity_id,
+                    l.lineitem_id,
                     l.target_link_uri,
                     l.return_url,
                     l.expires_at,
                     um.lti_subject,
                     a.resource_link_id,
+                    a.training_post_id,
                     a.title AS resource_title,
                     li.lineitem_key
                 FROM {$launches} l

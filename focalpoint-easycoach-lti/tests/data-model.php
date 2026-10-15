@@ -142,6 +142,10 @@ $schema   = $database->schema_sql();
 test_assert(count($tables) === 7, 'The model must define seven network-level tables.');
 test_assert(count($schema) === 7, 'The installer must provide one statement per table.');
 test_assert(
+    FocalPoint_EasyCoach_LTI_Database::SCHEMA_VERSION === '5',
+    'AGS progress events require schema version 5.'
+);
+test_assert(
     $tables['user_map'] === 'wp_fp_lti_user_map',
     'The learner map must use the WordPress network prefix.'
 );
@@ -180,6 +184,16 @@ test_assert(
         && !str_contains($schema_text, 'UNIQUE KEY nonce_hash (nonce_hash)'),
     'State and nonce hashes must remain nullable and non-unique until authorization.'
 );
+test_assert(
+    str_contains($schema_text, 'score_given decimal(12,8) DEFAULT NULL')
+        && str_contains($schema_text, 'score_maximum decimal(12,8) DEFAULT NULL')
+        && str_contains($schema_text, 'normalized_score decimal(12,8) DEFAULT NULL')
+        && str_contains($schema_text, 'result_timestamp datetime(6) NOT NULL')
+        && str_contains($schema_text, 'latest_score decimal(12,8) DEFAULT NULL')
+        && str_contains($schema_text, 'best_score decimal(12,8) DEFAULT NULL')
+        && str_contains($schema_text, 'attempt_count int(10) unsigned NOT NULL DEFAULT 0'),
+    'AGS result storage must support progress-only events and sub-second timestamps.'
+);
 
 $normalize_indexes = new ReflectionMethod(
     FocalPoint_EasyCoach_LTI_Database::class,
@@ -195,6 +209,22 @@ test_assert(
         && str_contains($test_wpdb->queries[1], 'DROP INDEX nonce_hash')
         && str_contains($test_wpdb->queries[1], 'ADD KEY nonce_hash (nonce_hash)'),
     'The schema upgrade must replace legacy unique state and nonce indexes.'
+);
+
+$normalize_results = new ReflectionMethod(
+    FocalPoint_EasyCoach_LTI_Database::class,
+    'normalize_result_score_columns'
+);
+$normalize_results->setAccessible(true);
+$normalize_results->invoke($database);
+
+test_assert(
+    count($test_wpdb->queries) === 4
+        && str_contains($test_wpdb->queries[2], 'MODIFY score_given decimal(12,8) DEFAULT NULL')
+        && str_contains($test_wpdb->queries[2], 'MODIFY result_timestamp datetime(6) NOT NULL')
+        && str_contains($test_wpdb->queries[3], 'MODIFY latest_score decimal(12,8) DEFAULT NULL')
+        && str_contains($test_wpdb->queries[3], 'MODIFY attempt_count int(10) unsigned NOT NULL DEFAULT 0'),
+    'The schema upgrade must explicitly normalize existing AGS result columns.'
 );
 
 $store  = new FocalPoint_Test_User_Map_Store();

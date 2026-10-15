@@ -16,6 +16,8 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
 
     private ?FocalPoint_EasyCoach_LTI_OAuth_Token_Service $token_service = null;
 
+    private ?FocalPoint_EasyCoach_LTI_AGS_Service $ags_service = null;
+
     public function __construct(
         FocalPoint_EasyCoach_LTI_Configuration $configuration,
         FocalPoint_EasyCoach_LTI_Key_Provider $key_provider
@@ -34,6 +36,11 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
         FocalPoint_EasyCoach_LTI_OAuth_Token_Service $token_service
     ): void {
         $this->token_service = $token_service;
+    }
+
+    public function set_ags_service(FocalPoint_EasyCoach_LTI_AGS_Service $ags_service): void
+    {
+        $this->ags_service = $ags_service;
     }
 
     public function register_routes(): void
@@ -73,7 +80,7 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
             '/lineitems/(?P<lineitem_id>[A-Za-z0-9._~-]+)',
             array(
                 'methods'             => WP_REST_Server::READABLE,
-                'callback'            => array($this, 'unavailable'),
+                'callback'            => array($this, 'lineitem'),
                 'permission_callback' => '__return_true',
             )
         );
@@ -83,7 +90,7 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
             '/lineitems/(?P<lineitem_id>[A-Za-z0-9._~-]+)/scores',
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array($this, 'unavailable'),
+                'callback'            => array($this, 'score'),
                 'permission_callback' => '__return_true',
             )
         );
@@ -204,6 +211,112 @@ final class FocalPoint_EasyCoach_LTI_REST_Controller
         }
 
         return new WP_REST_Response($result, 200, $this->token_headers());
+    }
+
+    /**
+     * Return the single line item advertised in the LTI launch.
+     *
+     * @param WP_REST_Request|null $request
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function lineitem($request = null)
+    {
+        if ($this->ags_service === null || !is_object($request)) {
+            return $this->unavailable();
+        }
+
+        $result = $this->ags_service->lineitem(
+            (string) $request->get_param('lineitem_id'),
+            (string) $request->get_header('authorization'),
+            time()
+        );
+        if (is_wp_error($result)) {
+            return $this->ags_error_response($result);
+        }
+
+        return new WP_REST_Response(
+            $result,
+            200,
+            array(
+                'Content-Type'           => FocalPoint_EasyCoach_LTI_AGS_Service::LINEITEM_MEDIA_TYPE,
+                'Cache-Control'          => 'no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            )
+        );
+    }
+
+    /**
+     * Authenticate and ingest an AGS score event.
+     *
+     * @param WP_REST_Request|null $request
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function score($request = null)
+    {
+        if ($this->ags_service === null || !is_object($request)) {
+            return $this->unavailable();
+        }
+
+        $body = (string) $request->get_body();
+        if (strlen($body) > 65536) {
+            return new WP_Error(
+                'fp_easycoach_lti_score_too_large',
+                'The EasyCoach AGS request could not be completed.',
+                array('status' => 413)
+            );
+        }
+
+        $json = $request->get_json_params();
+        $result = $this->ags_service->publish_score(
+            (string) $request->get_param('lineitem_id'),
+            (string) $request->get_header('authorization'),
+            (string) $request->get_header('content-type'),
+            is_array($json) ? $json : null,
+            time()
+        );
+        if (is_wp_error($result)) {
+            return $this->ags_error_response($result);
+        }
+
+        return new WP_REST_Response(
+            null,
+            204,
+            array(
+                'Cache-Control'          => 'no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            )
+        );
+    }
+
+    /**
+     * Add the RFC 6750 challenge without exposing validation details.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    private function ags_error_response(WP_Error $error)
+    {
+        $data   = $error->get_error_data();
+        $status = is_array($data) ? (int) ($data['status'] ?? 500) : 500;
+
+        if ($status !== 401) {
+            return $error;
+        }
+
+        return new WP_REST_Response(
+            array(
+                'code'    => $error->get_error_code(),
+                'message' => $error->get_error_message(),
+                'data'    => array('status' => 401),
+            ),
+            401,
+            array(
+                'WWW-Authenticate'       => 'Bearer',
+                'Cache-Control'          => 'no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            )
+        );
     }
 
     /**
