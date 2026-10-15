@@ -3,6 +3,13 @@
 Shared, security-focused LTI 1.3 platform integration for the Rayner Focal
 Point WordPress multisite.
 
+Version `0.6.0` activates the Assignment and Grade Services line-item and
+score routes. Focal Point verifies its signed bearer access token and required
+scope on every request, validates the AGS media type and score representation,
+and accepts callbacks only for an opaque learner subject that previously
+launched the requested line item. Accepted payloads are idempotent and never
+include the bearer token in persistent storage.
+
 Version `0.5.5` includes the authenticated WordPress account email in the LTI
 ID token because EasyCoach requires it to identify or provision the learner.
 Optional name claims remain excluded, and launches fail closed when the
@@ -30,9 +37,7 @@ retaining fragment-free validation for Platform return and callback URLs.
 Version `0.5.0` added the LTI 1.3 OAuth 2.0 client-credentials token service.
 It validates EasyGenerator `private_key_jwt` client assertions against the
 registered Tool JWKS, rejects assertion replay and issues one-hour RS256 bearer
-tokens restricted to the advertised AGS line-item and score scopes. Line-item
-and score routes still return a safe `503` until their complete authenticated
-service flows are implemented.
+tokens restricted to the advertised AGS line-item and score scopes.
 
 EasyCoach roleplay target links may use the vendor format
 `https://easycoach.easygenerator.com/#/lti-launch/<roleplay_id>`. Only the
@@ -62,8 +67,8 @@ All routes use the `focalpoint-lti/v1` REST namespace:
 - `GET /jwks` (implemented)
 - `GET|POST /authorize` (implemented for OIDC LTI resource-link launch)
 - `POST /token` (implemented for OAuth 2.0 `client_credentials`)
-- `GET /lineitems/{lineitem_id}`
-- `POST /lineitems/{lineitem_id}/scores`
+- `GET /lineitems/{lineitem_id}` (implemented)
+- `POST /lineitems/{lineitem_id}/scores` (implemented)
 
 WordPress exposes these beneath `/wp-json/` on a standard installation.
 
@@ -147,10 +152,12 @@ The installer is versioned through the network option
 `fp_easycoach_lti_schema_version`. Because MU plugins have no activation hook,
 the installer checks the version during WordPress `init`, uses a network lock,
 and runs `dbDelta()` only when an installation or upgrade is required. Schema
-version `3` adds OAuth assertion replay protection. The earlier version `2`
-upgrade added hashed login/message hints and immutable target/return URL
-snapshots to pending launches; an explicit idempotent migration makes the
-state and nonce columns nullable until EasyGenerator supplies those values.
+version `5` makes score values nullable for standards-compliant progress-only
+events and stores result timestamps with microsecond precision. Schema version
+`3` added OAuth assertion replay protection. The earlier version `2` upgrade
+added hashed login/message hints and immutable target/return URL snapshots to
+pending launches; explicit idempotent migrations make state and nonce nullable
+and non-unique because EasyCoach may reuse them.
 
 No learner names or email addresses are stored in these tables. WordPress user
 IDs remain inside Focal Point and are never sent as the LTI learner identifier.
@@ -158,6 +165,34 @@ IDs remain inside Focal Point and are never sent as the LTI learner identifier.
 `fp_lti_oauth_assertions` stores only SHA-256 hashes of accepted
 client-assertion `jti` values until they expire. It prevents replay without
 retaining EasyGenerator assertions or issued access tokens.
+
+## AGS result ingestion
+
+EasyCoach authenticates line-item and score requests with the scoped bearer
+JWT issued by `/token`. The Platform validates the JWT signature, key ID,
+issuer, subject, audience, lifetime and exact required scope. The line-item
+route returns `application/vnd.ims.lis.v2.lineitem+json`; score writes require
+`application/vnd.ims.lis.v1.score+json` and return `204 No Content`.
+
+Each accepted score is tied to the learner's opaque LTI subject, the requested
+line item and a previously issued launch. A deterministic event key makes an
+identical callback replay safe. Immutable events are retained in
+`fp_lti_result_events`, while `fp_lti_current_results` maintains latest and
+best normalized scores plus completion/pass state. Out-of-order events remain
+available for audit but cannot replace a newer current result.
+
+The normalized callback document is also written beneath the source site's
+existing learner directory:
+
+```text
+uploads[/sites/{site_id}]/{user_login}/__easycoach_roleplays__/{roleplay_slug}/
+```
+
+Only the relative payload path is stored in the database. The current result
+summary is mirrored to the learner's single `user-profiles` post under the
+private `_fp_easycoach_roleplay_results` post-meta key. The network result
+tables remain canonical if that asynchronously maintained profile post is
+temporarily absent.
 
 ## OAuth token service
 
@@ -228,8 +263,8 @@ changes it or a controlled test double is used.
 
 ## Local verification
 
-The inactive foundation has a WordPress-free smoke test that checks plugin
-bootstrapping, route registration and fail-closed responses:
+The integration has WordPress-free regression tests for its protocol and data
+boundaries:
 
 ```bash
 php focalpoint-easycoach-lti/tests/smoke.php
@@ -237,6 +272,7 @@ php focalpoint-easycoach-lti/tests/data-model.php
 php focalpoint-easycoach-lti/tests/keys-and-jwks.php
 php focalpoint-easycoach-lti/tests/oidc-launch.php
 php focalpoint-easycoach-lti/tests/oauth-token-service.php
+php focalpoint-easycoach-lti/tests/ags-results.php
 ```
 
 ## Retention and removal

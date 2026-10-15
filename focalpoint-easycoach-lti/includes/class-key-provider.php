@@ -91,6 +91,33 @@ final class FocalPoint_EasyCoach_LTI_Key_Provider
     }
 
     /**
+     * Verify a signature created by the configured platform key.
+     *
+     * @return bool|WP_Error
+     */
+    public function verify(string $signing_input, string $signature)
+    {
+        $details = $this->key_details();
+
+        if (is_wp_error($details)) {
+            return $details;
+        }
+
+        $verified = openssl_verify(
+            $signing_input,
+            $signature,
+            $details['key'],
+            OPENSSL_ALGO_SHA256
+        );
+
+        if ($verified === -1) {
+            return $this->error('fp_easycoach_lti_key_verification_failed');
+        }
+
+        return $verified === 1;
+    }
+
+    /**
      * @return array<string,mixed>|WP_Error
      */
     private function key_details()

@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 final class FocalPoint_EasyCoach_LTI_Database
 {
-    public const SCHEMA_VERSION = '4';
+    public const SCHEMA_VERSION = '5';
 
     private const SCHEMA_OPTION = 'fp_easycoach_lti_schema_version';
     private const LOCK_OPTION   = 'fp_easycoach_lti_schema_lock';
@@ -74,6 +74,7 @@ final class FocalPoint_EasyCoach_LTI_Database
 
             $this->normalize_launch_hash_columns();
             $this->normalize_launch_request_hash_indexes();
+            $this->normalize_result_score_columns();
 
             if ($this->schema_is_current()) {
                 update_site_option(self::SCHEMA_OPTION, self::SCHEMA_VERSION);
@@ -191,12 +192,12 @@ final class FocalPoint_EasyCoach_LTI_Database
                 user_map_id bigint(20) unsigned NOT NULL,
                 launch_id bigint(20) unsigned DEFAULT NULL,
                 external_attempt_id varchar(191) NOT NULL DEFAULT '',
-                score_given decimal(12,8) NOT NULL,
-                score_maximum decimal(12,8) NOT NULL,
-                normalized_score decimal(12,8) NOT NULL,
+                score_given decimal(12,8) DEFAULT NULL,
+                score_maximum decimal(12,8) DEFAULT NULL,
+                normalized_score decimal(12,8) DEFAULT NULL,
                 activity_progress varchar(32) NOT NULL,
                 grading_progress varchar(32) NOT NULL,
-                result_timestamp datetime NOT NULL,
+                result_timestamp datetime(6) NOT NULL,
                 received_at datetime NOT NULL,
                 payload_hash char(64) NOT NULL,
                 payload_path text NOT NULL,
@@ -212,9 +213,9 @@ final class FocalPoint_EasyCoach_LTI_Database
                 lineitem_id bigint(20) unsigned NOT NULL,
                 user_map_id bigint(20) unsigned NOT NULL,
                 latest_event_id bigint(20) unsigned NOT NULL,
-                latest_score decimal(12,8) NOT NULL,
-                best_score decimal(12,8) NOT NULL,
-                attempt_count int(10) unsigned NOT NULL DEFAULT 1,
+                latest_score decimal(12,8) DEFAULT NULL,
+                best_score decimal(12,8) DEFAULT NULL,
+                attempt_count int(10) unsigned NOT NULL DEFAULT 0,
                 activity_progress varchar(32) NOT NULL,
                 grading_progress varchar(32) NOT NULL,
                 completed tinyint(1) unsigned NOT NULL DEFAULT 0,
@@ -315,6 +316,31 @@ final class FocalPoint_EasyCoach_LTI_Database
         }
     }
 
+    /**
+     * AGS permits progress-only events and requires sub-second timestamps.
+     * dbDelta does not reliably relax existing columns, so apply the version 5
+     * result-column migration explicitly and idempotently.
+     */
+    private function normalize_result_score_columns(): void
+    {
+        $events  = $this->table_names()['result_events'];
+        $current = $this->table_names()['current_results'];
+
+        $this->wpdb->query(
+            "ALTER TABLE {$events}
+                MODIFY score_given decimal(12,8) DEFAULT NULL,
+                MODIFY score_maximum decimal(12,8) DEFAULT NULL,
+                MODIFY normalized_score decimal(12,8) DEFAULT NULL,
+                MODIFY result_timestamp datetime(6) NOT NULL"
+        );
+        $this->wpdb->query(
+            "ALTER TABLE {$current}
+                MODIFY latest_score decimal(12,8) DEFAULT NULL,
+                MODIFY best_score decimal(12,8) DEFAULT NULL,
+                MODIFY attempt_count int(10) unsigned NOT NULL DEFAULT 0"
+        );
+    }
+
     private function schema_is_current(): bool
     {
         if (!$this->all_tables_exist()) {
@@ -341,9 +367,84 @@ final class FocalPoint_EasyCoach_LTI_Database
             }
         }
 
-        return ($by_name['state_hash']['Null'] ?? '') === 'YES'
-            && ($by_name['nonce_hash']['Null'] ?? '') === 'YES'
-            && $this->launch_request_hash_indexes_are_non_unique($table);
+        if (($by_name['state_hash']['Null'] ?? '') !== 'YES'
+            || ($by_name['nonce_hash']['Null'] ?? '') !== 'YES'
+            || !$this->launch_request_hash_indexes_are_non_unique($table)
+        ) {
+            return false;
+        }
+
+        $events = $this->wpdb->get_results(
+            "SHOW COLUMNS FROM {$this->table_names()['result_events']}",
+            ARRAY_A
+        );
+        $current = $this->wpdb->get_results(
+            "SHOW COLUMNS FROM {$this->table_names()['current_results']}",
+            ARRAY_A
+        );
+
+        return $this->columns_are_nullable(
+            $events,
+            array('score_given', 'score_maximum', 'normalized_score')
+        )
+            && $this->columns_are_nullable(
+                $current,
+                array('latest_score', 'best_score')
+            )
+            && $this->column_type($events, 'result_timestamp') === 'datetime(6)'
+            && $this->column_default($current, 'attempt_count') === '0';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $columns
+     * @param string[]                       $names
+     */
+    private function columns_are_nullable(array $columns, array $names): bool
+    {
+        foreach ($names as $name) {
+            $nullable = false;
+
+            foreach ($columns as $column) {
+                if (($column['Field'] ?? '') === $name) {
+                    $nullable = ($column['Null'] ?? '') === 'YES';
+                    break;
+                }
+            }
+
+            if (!$nullable) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $columns
+     */
+    private function column_type(array $columns, string $name): string
+    {
+        foreach ($columns as $column) {
+            if (($column['Field'] ?? '') === $name) {
+                return strtolower((string) ($column['Type'] ?? ''));
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $columns
+     */
+    private function column_default(array $columns, string $name): string
+    {
+        foreach ($columns as $column) {
+            if (($column['Field'] ?? '') === $name) {
+                return (string) ($column['Default'] ?? '');
+            }
+        }
+
+        return '';
     }
 
     private function launch_request_hash_indexes_are_non_unique(string $table): bool

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Focal Point EasyCoach LTI
  * Description: Shared LTI 1.3 platform foundation for the Focal Point multisite and EasyCoach.
- * Version: 0.5.5
+ * Version: 0.6.0
  * Requires PHP: 8.0
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FP_EASYCOACH_LTI_VERSION', '0.5.5');
+define('FP_EASYCOACH_LTI_VERSION', '0.6.0');
 define('FP_EASYCOACH_LTI_DIR', WPMU_PLUGIN_DIR . '/focalpoint-easycoach-lti');
 
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-configuration.php';
@@ -27,6 +27,13 @@ require_once FP_EASYCOACH_LTI_DIR . '/includes/class-assertion-replay-repository
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-tool-jwks-provider.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-client-assertion-verifier.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-oauth-token-service.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-access-token-verifier.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-result-store.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-result-repository.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/interface-result-payload-store.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-result-payload-repository.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-profile-result-sync.php';
+require_once FP_EASYCOACH_LTI_DIR . '/includes/class-ags-service.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-oidc-launch-service.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-launch-controller.php';
 require_once FP_EASYCOACH_LTI_DIR . '/includes/class-rest-controller.php';
